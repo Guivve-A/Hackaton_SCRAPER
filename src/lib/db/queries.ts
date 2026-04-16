@@ -367,6 +367,45 @@ export async function listHackathons(
   return (data ?? []).map(toHackathon);
 }
 
+export async function pruneStaleByPlatform(
+  platform: string,
+  scrapedBefore: string
+): Promise<number> {
+  const { data, error } = await getWriteClient()
+    .from("hackathons")
+    .delete({ count: "exact" })
+    .eq("platform", platform)
+    .lt("scraped_at", scrapedBefore)
+    .select("id");
+
+  if (error) {
+    throw new Error(
+      `Failed to prune stale ${platform} rows: ${error.message}`
+    );
+  }
+
+  return data?.length ?? 0;
+}
+
+export async function pruneExpiredByDeadline(
+  deadlineBefore: string
+): Promise<number> {
+  const { data, error } = await getWriteClient()
+    .from("hackathons")
+    .delete({ count: "exact" })
+    .not("deadline", "is", null)
+    .lt("deadline", deadlineBefore)
+    .select("id");
+
+  if (error) {
+    throw new Error(
+      `Failed to prune expired hackathons: ${error.message}`
+    );
+  }
+
+  return data?.length ?? 0;
+}
+
 export async function updateTranslation(
   id: number,
   text: string

@@ -173,7 +173,7 @@ function mapMlhEvent(event: MlhEvent): Partial<Hackathon> | null {
   }
 
   const formatType = cleanText(event.formatType)?.toLowerCase() ?? "";
-  const isOnline = formatType === "digital";
+  const isOnline = formatType === "digital" || formatType === "hybrid";
 
   const yearFromStart = event.startsAt ? new Date(event.startsAt).getUTCFullYear() : null;
   const fallbackYear = Number.isFinite(yearFromStart) && yearFromStart
@@ -200,7 +200,7 @@ function mapMlhEvent(event: MlhEvent): Partial<Hackathon> | null {
     start_date: startDate,
     end_date: endDate,
     deadline: endDate,
-    location: isOnline ? "Online" : cleanText(event.location) ?? "TBD",
+    location: cleanText(event.location) ?? (isOnline ? "Online" : "TBD"),
     is_online: isOnline,
     tags,
     image_url: cleanText(event.logoUrl) ?? cleanText(event.backgroundUrl),

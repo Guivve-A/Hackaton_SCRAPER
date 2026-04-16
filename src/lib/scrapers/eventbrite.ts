@@ -4,9 +4,19 @@ import { endOfDay, isValid, parse, startOfDay } from "date-fns";
 
 import type { Hackathon } from "@/types/hackathon";
 
-const EVENTBRITE_URLS: Record<"ecuador" | "online", string> = {
-  ecuador: "https://www.eventbrite.com/d/ecuador/hackathon/",
+export type EventbriteRegion =
+  | "online"
+  | "united-states"
+  | "united-kingdom"
+  | "germany"
+  | "india";
+
+const EVENTBRITE_URLS: Record<EventbriteRegion, string> = {
   online: "https://www.eventbrite.com/d/online/hackathon/",
+  "united-states": "https://www.eventbrite.com/d/united-states/hackathon/",
+  "united-kingdom": "https://www.eventbrite.com/d/united-kingdom/hackathon/",
+  germany: "https://www.eventbrite.com/d/germany/hackathon/",
+  india: "https://www.eventbrite.com/d/india/hackathon/",
 };
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -324,9 +334,9 @@ function dedupeByUrl(items: Partial<Hackathon>[]): Partial<Hackathon>[] {
 }
 
 export async function scrapeEventbrite(
-  location: "ecuador" | "online"
+  region: EventbriteRegion
 ): Promise<Partial<Hackathon>[]> {
-  const targetUrl = EVENTBRITE_URLS[location];
+  const targetUrl = EVENTBRITE_URLS[region];
   const { data: html } = await http.get<string>(targetUrl, {
     responseType: "text",
   });
@@ -341,7 +351,7 @@ export async function scrapeEventbrite(
 
   const merged = dedupeByUrl([...fromServerData, ...fromJsonLd]);
   console.info(
-    `[scrapers][eventbrite:${location}] Parsed ${merged.length} hackathon-like events.`
+    `[scrapers][eventbrite:${region}] Parsed ${merged.length} hackathon-like events.`
   );
 
   return merged;

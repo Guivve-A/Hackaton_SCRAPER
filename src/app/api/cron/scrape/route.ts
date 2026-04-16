@@ -15,7 +15,7 @@ export async function GET(request: Request): Promise<Response> {
     const result = await runAllScrapers();
 
     console.info(
-      `[cron/scrape] Done. total=${result.total}, inserted=${result.inserted}, updated=${result.updated}, errors=${result.errors.length}`
+      `[cron/scrape] Done. total=${result.total}, inserted=${result.inserted}, updated=${result.updated}, deleted_stale=${result.deleted.stale}, deleted_expired=${result.deleted.expired}, errors=${result.errors.length}`
     );
 
     return NextResponse.json({ success: true, ...result });

@@ -167,7 +167,7 @@ function mapDevpostHackathon(item: DevpostApiHackathon): Partial<Hackathon> | nu
     .filter((t) => t.length > 0);
 
   const location = extractLocation(item.displayed_location) ?? "Online";
-  const isOnline = /online|worldwide|virtual|remote/i.test(location);
+  const isOnline = /online|worldwide|virtual|remote|hybrid/i.test(location);
   const organizer = cleanText(item.organization_name);
 
   const descriptionParts = [organizer, cleanText(item.time_left_to_submission)].filter(

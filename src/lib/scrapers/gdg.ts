@@ -4,7 +4,22 @@ import { isValid, parseISO } from "date-fns";
 import type { Hackathon } from "@/types/hackathon";
 
 const GDG_BASE_URL = "https://gdg.community.dev";
-const GDG_CHAPTER_SLUGS = ["gdg-quito", "gdg-guayaquil"] as const;
+const GDG_CHAPTER_SLUGS = [
+  "gdg-quito",
+  "gdg-guayaquil",
+  "gdg-mexico-city",
+  "gdg-bogota",
+  "gdg-buenos-aires",
+  "gdg-sao-paulo",
+  "gdg-santiago",
+  "gdg-madrid",
+  "gdg-london",
+  "gdg-berlin",
+  "gdg-bangalore",
+  "gdg-tokyo",
+  "gdg-bay-area",
+  "gdg-new-york",
+] as const;
 const REQUEST_TIMEOUT_MS = 10_000;
 const USER_AGENT = "Mozilla/5.0 (compatible; HackFinder/1.0)";
 
