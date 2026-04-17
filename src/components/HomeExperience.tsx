@@ -254,14 +254,15 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
                 return (
                   <span key={lineIndex} className="block">
                     {words.map((word, wordIndex) => (
-                      <span key={`${lineIndex}-${wordIndex}`} className="inline-block">
-                        <span
-                          data-hero-subtitle-word
-                          className="inline-block opacity-0 will-change-transform"
-                        >
-                          {word}
-                        </span>
-                        {wordIndex < words.length - 1 && " "}
+                      <span
+                        key={`${lineIndex}-${wordIndex}`}
+                        data-hero-subtitle-word
+                        className={cn(
+                          "inline-block opacity-0 will-change-transform",
+                          wordIndex < words.length - 1 && "mr-[0.34em]"
+                        )}
+                      >
+                        {word}
                       </span>
                     ))}
                   </span>
