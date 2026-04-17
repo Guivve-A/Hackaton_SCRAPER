@@ -7,16 +7,40 @@ import * as THREE from "three";
 const MIN_DISPLAY_MS = 180;
 const MAX_DISPLAY_MS = 4000;
 const FADE_MS = 260;
+const PRELOADER_SESSION_KEY = "hasLoaded3D";
 
 type Phase = "loading" | "fading" | "done";
 
+function hasLoaded3DInSession(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.sessionStorage.getItem(PRELOADER_SESSION_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function markLoaded3DInSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(PRELOADER_SESSION_KEY, "true");
+  } catch {
+    // Ignore storage errors (private mode / blocked storage).
+  }
+}
+
 export function AssetPreloader() {
   const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<Phase>("loading");
+  const [phase, setPhase] = useState<Phase>(() =>
+    hasLoaded3DInSession() ? "done" : "loading"
+  );
   const mountedAt = useRef<number>(0);
   const finalizedRef = useRef(false);
+  const bypassRef = useRef(phase === "done");
 
   useEffect(() => {
+    if (bypassRef.current) return;
+
     mountedAt.current = performance.now();
     const manager = THREE.DefaultLoadingManager;
 
@@ -28,7 +52,10 @@ export function AssetPreloader() {
       window.setTimeout(() => {
         setProgress(100);
         setPhase("fading");
-        window.setTimeout(() => setPhase("done"), FADE_MS);
+        window.setTimeout(() => {
+          markLoaded3DInSession();
+          setPhase("done");
+        }, FADE_MS);
       }, wait);
     };
 
