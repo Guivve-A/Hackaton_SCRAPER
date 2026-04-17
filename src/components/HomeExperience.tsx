@@ -37,6 +37,10 @@ const FILTERS: Array<{ id: string; label: string; filter: Filter }> = [
 ];
 
 const TITLE_WORDS = ["Descubre", "tu", "próximo", "hackathon"];
+const HERO_SUBTITLE_LINES = [
+  "Eventos de Devpost, MLH, Eventbrite y la comunidad GDG en un solo lugar.",
+  "Pregunta en lenguaje natural y deja que la IA encuentre el match perfecto.",
+];
 
 export interface HomeExperienceProps {
   recent: Hackathon[];
@@ -116,9 +120,13 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
 
       const chars = hero.querySelectorAll<HTMLElement>("[data-hero-char]");
       const fadeUp = hero.querySelectorAll<HTMLElement>("[data-hero-fade]");
+      const subtitleWords = hero.querySelectorAll<HTMLElement>(
+        "[data-hero-subtitle-word]"
+      );
 
       gsap.set(chars, { yPercent: 110, opacity: 0 });
       gsap.set(fadeUp, { y: 24, opacity: 0 });
+      gsap.set(subtitleWords, { y: 14, opacity: 0, filter: "blur(4px)" });
 
       const tl = gsap.timeline({
         defaults: { ease: "expo.out" },
@@ -139,7 +147,29 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
           stagger: 0.12,
         },
         "-=0.9"
+      ).to(
+        subtitleWords,
+        {
+          y: 0,
+          opacity: 1,
+          filter: "blur(0px)",
+          duration: 0.8,
+          stagger: 0.02,
+        },
+        "-=0.82"
       );
+
+      return () => {
+        gsap.to(subtitleWords, {
+          y: -8,
+          opacity: 0,
+          filter: "blur(4px)",
+          duration: 0.22,
+          stagger: { each: 0.008, from: "end" },
+          ease: "power2.in",
+          overwrite: true,
+        });
+      };
     },
     { scope: rootRef }
   );
@@ -218,13 +248,25 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
               ))}
             </h1>
 
-            <p
-              data-hero-fade
-              className="max-w-xl text-pretty text-[15px] leading-relaxed text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] animate-neon-pulse sm:text-base"
-            >
-              Eventos de Devpost, MLH, Eventbrite y la comunidad GDG en un solo
-              lugar. Pregunta en lenguaje natural y deja que la IA encuentre el
-              match perfecto.
+            <p className="max-w-xl text-pretty text-[15px] leading-relaxed text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] animate-neon-pulse sm:text-base">
+              {HERO_SUBTITLE_LINES.map((line, lineIndex) => {
+                const words = line.split(" ");
+                return (
+                  <span key={lineIndex} className="block">
+                    {words.map((word, wordIndex) => (
+                      <span key={`${lineIndex}-${wordIndex}`} className="inline-block">
+                        <span
+                          data-hero-subtitle-word
+                          className="inline-block opacity-0 will-change-transform"
+                        >
+                          {word}
+                        </span>
+                        {wordIndex < words.length - 1 && " "}
+                      </span>
+                    ))}
+                  </span>
+                );
+              })}
             </p>
 
             <div data-hero-fade className="pointer-events-auto w-full max-w-2xl">
