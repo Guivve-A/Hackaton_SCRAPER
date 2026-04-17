@@ -4,9 +4,9 @@ import { Compass } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
-const MIN_DISPLAY_MS = 500;
-const MAX_DISPLAY_MS = 9000;
-const FADE_MS = 600;
+const MIN_DISPLAY_MS = 180;
+const MAX_DISPLAY_MS = 4000;
+const FADE_MS = 260;
 
 type Phase = "loading" | "fading" | "done";
 
@@ -117,7 +117,7 @@ export function AssetPreloader() {
         <div className="w-full">
           <div className="relative h-[2px] w-full overflow-hidden rounded-full bg-white/[0.06]">
             <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-300/80 via-sky-300/80 to-violet-300/80 shadow-[0_0_10px_rgba(34,211,238,0.45)] transition-[width] duration-500 ease-out"
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-300/80 via-sky-300/80 to-violet-300/80 shadow-[0_0_10px_rgba(34,211,238,0.45)] transition-[width] duration-200 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
