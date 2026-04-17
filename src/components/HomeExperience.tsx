@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Sparkles } from "lucide-react";
+import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
@@ -190,14 +190,6 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
         {/* FRONT LAYER — UI */}
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center px-4 sm:px-6">
           <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-7 text-center">
-            <div
-              data-hero-fade
-              className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 backdrop-blur-xl"
-            >
-              <Sparkles className="size-3 text-cyan-200" />
-              Búsqueda semántica con IA
-            </div>
-
             <h1
               onPointerMove={handleTitlePointerMove}
               onPointerLeave={handleTitlePointerLeave}
