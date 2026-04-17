@@ -248,11 +248,17 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
               ))}
             </h1>
 
-            <p className="w-full max-w-2xl px-2 text-pretty text-[15px] leading-[1.7] tracking-[0.012em] text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] animate-neon-pulse sm:px-0 sm:text-base">
+            <p className="w-full max-w-3xl px-2 text-pretty text-[15px] leading-[1.7] tracking-[0.012em] text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] animate-neon-pulse sm:px-0 sm:text-base">
               {HERO_SUBTITLE_LINES.map((line, lineIndex) => {
                 const words = line.split(" ");
                 return (
-                  <span key={lineIndex} className="block text-balance [&:not(:last-child)]:mb-0.5">
+                  <span
+                    key={lineIndex}
+                    className={cn(
+                      "block text-balance [&:not(:last-child)]:mb-0.5",
+                      lineIndex === 0 && "md:whitespace-nowrap"
+                    )}
+                  >
                     {words.map((word, wordIndex) => (
                       <span
                         key={`${lineIndex}-${wordIndex}`}
