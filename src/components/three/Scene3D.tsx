@@ -2,9 +2,8 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
 
-import { EarthModel } from "./EarthModel";
+import { Earth } from "./Earth";
 import { InteractiveParticles } from "./InteractiveParticles";
 
 export function Scene3D() {
@@ -16,14 +15,13 @@ export function Scene3D() {
         powerPreference: "high-performance",
       }}
       dpr={[1, 1.8]}
-      camera={{ position: [0, 0, 4.6], fov: 38 }}
+      camera={{ position: [0, 0, 5.4], fov: 38 }}
       style={{ background: "transparent" }}
     >
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[4, 3, 5]} intensity={0.9} />
+      <ambientLight intensity={0.05} />
+      <directionalLight position={[5, 3, 5]} intensity={2.5} color="#ffffff" />
       <Suspense fallback={null}>
-        <Environment preset="city" />
-        <EarthModel scale={1.1} />
+        <Earth />
       </Suspense>
       <InteractiveParticles />
     </Canvas>

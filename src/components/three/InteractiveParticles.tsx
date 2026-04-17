@@ -5,18 +5,21 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { gsap } from "gsap";
 import * as THREE from "three";
 
-const COUNT = 3000;
-const RADIUS = 2.35;
-const SHELL_THICKNESS = 0.55;
-const REPEL_RADIUS = 1.1;
+const COUNT = 3500;
+const INNER_RADIUS = 2.6;
+const OUTER_RADIUS = 5.2;
+const REPEL_RADIUS = 1.2;
 
 function buildParticles() {
   const positions = new Float32Array(COUNT * 3);
   const homes = new Float32Array(COUNT * 3);
   const displacements = new Float32Array(COUNT * 3);
+  const sizes = new Float32Array(COUNT);
 
   for (let i = 0; i < COUNT; i++) {
-    const r = RADIUS + (Math.random() - 0.5) * SHELL_THICKNESS;
+    const r =
+      INNER_RADIUS +
+      Math.pow(Math.random(), 1.4) * (OUTER_RADIUS - INNER_RADIUS);
     const theta = Math.random() * Math.PI * 2;
     const phi = Math.acos(2 * Math.random() - 1);
     const x = r * Math.sin(phi) * Math.cos(theta);
@@ -25,24 +28,56 @@ function buildParticles() {
     positions[i * 3] = homes[i * 3] = x;
     positions[i * 3 + 1] = homes[i * 3 + 1] = y;
     positions[i * 3 + 2] = homes[i * 3 + 2] = z;
+    sizes[i] = 0.7 + Math.random() * 1.4;
   }
 
-  return { positions, homes, displacements };
+  return { positions, homes, displacements, sizes };
 }
 
 const PARTICLES = buildParticles();
 
+const vertexShader = /* glsl */ `
+  uniform float uPixelRatio;
+  attribute float aSize;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+    gl_PointSize = aSize * uPixelRatio * (260.0 / -mvPosition.z);
+  }
+`;
+
+const fragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  void main() {
+    vec2 c = gl_PointCoord - 0.5;
+    float d = length(c);
+    if (d > 0.5) discard;
+    float alpha = smoothstep(0.5, 0.42, d);
+    gl_FragColor = vec4(uColor, alpha);
+  }
+`;
+
 export function InteractiveParticles() {
   const pointsRef = useRef<THREE.Points>(null);
+  const matRef = useRef<THREE.ShaderMaterial>(null);
   const { camera, gl } = useThree();
 
-  const { positions, homes, displacements } = useMemo(
+  const { positions, homes, displacements, sizes } = useMemo(
     () => ({
       positions: PARTICLES.positions.slice(),
       homes: PARTICLES.homes,
       displacements: PARTICLES.displacements.slice(),
+      sizes: PARTICLES.sizes,
     }),
     []
+  );
+
+  const uniforms = useMemo(
+    () => ({
+      uPixelRatio: { value: gl.getPixelRatio() },
+      uColor: { value: new THREE.Color("#dff2ff") },
+    }),
+    [gl]
   );
 
   const dispersion = useRef({ factor: 0 });
@@ -67,15 +102,19 @@ export function InteractiveParticles() {
       const velocity = Math.sqrt(dx * dx + dy * dy) / dt;
       prevPointer.current = { x: nx, y: ny, t: now };
 
-      if (velocity < 0.45) return;
+      if (velocity < 0.4) return;
 
-      tmpDir.set(nx, ny, 0.5).unproject(camera).sub(camera.position).normalize();
+      tmpDir
+        .set(nx, ny, 0.5)
+        .unproject(camera)
+        .sub(camera.position)
+        .normalize();
       const distToPlane = -camera.position.z / tmpDir.z;
       tmpWorld
         .copy(camera.position)
         .add(tmpDir.multiplyScalar(distToPlane));
 
-      const strength = Math.min(velocity, 4) * 0.42;
+      const strength = Math.min(velocity, 4) * 0.5;
       displacements.fill(0);
 
       for (let i = 0; i < COUNT; i++) {
@@ -95,12 +134,12 @@ export function InteractiveParticles() {
         }
       }
 
-      gsap.killTweensOf(dispersion.current);
-      dispersion.current.factor = 1;
-      gsap.to(dispersion.current, {
+      gsap.killTweensOf(dispersionState);
+      dispersionState.factor = 1;
+      gsap.to(dispersionState, {
         factor: 0,
-        duration: 1.7,
-        ease: "elastic.out(1, 0.45)",
+        duration: 1.8,
+        ease: "elastic.out(1, 0.5)",
       });
     };
 
@@ -122,7 +161,7 @@ export function InteractiveParticles() {
       arr[i] = homes[i] + displacements[i] * f;
     }
     attr.needsUpdate = true;
-    pointsRef.current.rotation.y += delta * 0.03;
+    pointsRef.current.rotation.y += delta * 0.012;
   });
 
   return (
@@ -134,15 +173,20 @@ export function InteractiveParticles() {
           count={COUNT}
           itemSize={3}
         />
+        <bufferAttribute
+          attach="attributes-aSize"
+          args={[sizes, 1]}
+          count={COUNT}
+          itemSize={1}
+        />
       </bufferGeometry>
-      <pointsMaterial
-        size={0.026}
-        color="#d8ecff"
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
         transparent
-        opacity={0.9}
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
-        sizeAttenuation
       />
     </points>
   );
