@@ -1,3 +1,6 @@
+import { Search } from "lucide-react";
+import Link from "next/link";
+
 import { ChatWidget } from "@/components/ChatWidget";
 import { EventsFilters } from "@/components/EventsFilters";
 import { HackathonCard } from "@/components/HackathonCard";
@@ -14,6 +17,7 @@ const VALID_PLATFORMS: ReadonlyArray<Platform> = [
   "eventbrite",
   "luma",
   "gdg",
+  "lablab",
 ];
 
 function asString(value: string | string[] | undefined): string {
@@ -70,18 +74,27 @@ export default async function EventsPage({
     }
   } catch (error) {
     console.error("[events] Failed to load:", error);
-    errorMessage = "No pudimos cargar los hackathons. Intenta nuevamente en unos segundos.";
+    errorMessage =
+      "No pudimos cargar los hackathons. Intenta nuevamente en unos segundos.";
   }
 
   return (
     <>
       <SiteHeader />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-            Todos los hackathons
+      <main className="relative mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-16 sm:px-6 sm:pt-20">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-[700px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.16),transparent_65%)] blur-3xl"
+        />
+
+        <header className="mb-10 space-y-3">
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/65 backdrop-blur-md">
+            Catálogo global
+          </span>
+          <h1 className="font-heading tracking-luxury text-balance text-4xl font-medium leading-[1.05] text-white sm:text-5xl md:text-6xl">
+            Todos los <span className="text-gradient-luxury">hackathons</span>
           </h1>
-          <p className="mt-2 text-sm text-zinc-600">
+          <p className="max-w-xl text-[15px] text-white/55">
             Filtra, busca y encuentra el evento que mejor encaja contigo.
           </p>
         </header>
@@ -93,16 +106,20 @@ export default async function EventsPage({
           initialPrize={prizeRaw}
         />
 
-        <div className="mt-8 mb-4 flex items-center justify-between text-sm text-zinc-600">
-          <span>
+        <div className="mt-10 mb-5 flex items-center justify-between">
+          <span className="text-[13px] text-white/55">
             {q ? (
               <>
-                <strong className="text-zinc-900">{items.length}</strong>{" "}
+                <strong className="font-semibold text-white">
+                  {items.length}
+                </strong>{" "}
                 resultados para &quot;{q}&quot;
               </>
             ) : (
               <>
-                <strong className="text-zinc-900">{items.length}</strong>{" "}
+                <strong className="font-semibold text-white">
+                  {items.length}
+                </strong>{" "}
                 eventos disponibles
               </>
             )}
@@ -128,20 +145,31 @@ export default async function EventsPage({
 
 function EmptyState({ query }: { query: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
-      <h3 className="text-base font-semibold text-zinc-900">Sin resultados</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-20 text-center backdrop-blur-xl">
+      <div className="flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-violet-300">
+        <Search className="size-5" />
+      </div>
+      <h3 className="font-heading tracking-luxury text-lg font-light text-white/95">
+        Sin resultados
+      </h3>
+      <p className="mx-auto max-w-md text-[13px] leading-relaxed text-white/50">
         {query
           ? `No encontramos hackathons que coincidan con "${query}". Prueba ajustar la descripción o limpiar los filtros.`
           : "No hay eventos con esos filtros. Prueba combinarlos de otra forma."}
       </p>
+      <Link
+        href="/suggest"
+        className="mt-2 rounded-full border border-violet-400/30 bg-violet-500/15 px-4 py-2 text-xs font-medium text-violet-100 transition hover:border-violet-300/50 hover:bg-violet-500/25"
+      >
+        Sugerir un evento online
+      </Link>
     </div>
   );
 }
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-12 text-center text-sm text-rose-700">
+    <div className="rounded-2xl border border-rose-400/20 bg-rose-500/5 px-6 py-12 text-center text-sm text-rose-200/90 backdrop-blur-xl">
       {message}
     </div>
   );

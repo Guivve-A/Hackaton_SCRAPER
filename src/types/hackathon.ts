@@ -1,4 +1,10 @@
-export type Platform = "devpost" | "mlh" | "eventbrite" | "luma" | "gdg";
+export type Platform =
+  | "devpost"
+  | "mlh"
+  | "eventbrite"
+  | "luma"
+  | "gdg"
+  | "lablab";
 
 export interface Hackathon {
   id: string;

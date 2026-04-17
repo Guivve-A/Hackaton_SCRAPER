@@ -1,8 +1,10 @@
 import type { Hackathon, Platform } from "@/types/hackathon";
 import {
+  getScrapeSourceHealth,
   getHackathonByUrl,
   pruneExpiredByDeadline,
   pruneStaleByPlatform,
+  recordScrapeSourceMetric,
   upsertHackathon,
 } from "@/lib/db/queries";
 
@@ -10,6 +12,7 @@ import { scrapeDevpost } from "./devpost";
 import { scrapeMLH } from "./mlh";
 import { scrapeEventbrite } from "./eventbrite";
 import { scrapeGDG } from "./gdg";
+import { scrapeLablab } from "./lablab";
 
 type ScraperTask = {
   name: string;
@@ -23,9 +26,36 @@ export type RunAllScrapersResult = {
   updated: number;
   deleted: { stale: number; expired: number };
   errors: string[];
+  alerts: string[];
+  sources: Record<string, { status: "success" | "failed"; fetched: number }>;
 };
 
 const EXPIRED_DEADLINE_DAYS = 30;
+const TRACKING_QUERY_PARAMS = new Set([
+  "fbclid",
+  "gclid",
+  "mc_cid",
+  "mc_eid",
+  "ref",
+  "ref_src",
+  "source",
+  "si",
+]);
+const TITLE_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "this",
+  "that",
+  "hackathon",
+  "online",
+  "global",
+]);
+const SEMANTIC_TITLE_SIMILARITY = 0.82;
+const SEMANTIC_ORGANIZER_SIMILARITY = 0.75;
+const SEMANTIC_DATE_WINDOW_DAYS = 3;
 
 function cleanText(value: string | undefined | null): string | null {
   if (!value) {
@@ -36,9 +66,215 @@ function cleanText(value: string | undefined | null): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function canonicalizeUrl(value: string): string | null {
+  const cleaned = cleanText(value);
+  if (!cleaned) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(cleaned);
+
+    parsed.hash = "";
+    if (parsed.protocol === "http:") {
+      parsed.protocol = "https:";
+    }
+
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+
+    const entries = Array.from(parsed.searchParams.entries())
+      .filter(([key]) => {
+        const lowerKey = key.toLowerCase();
+        return !lowerKey.startsWith("utm_") && !TRACKING_QUERY_PARAMS.has(lowerKey);
+      })
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    parsed.search = "";
+    for (const [key, val] of entries) {
+      parsed.searchParams.append(key, val);
+    }
+
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+    if (!parsed.pathname) {
+      parsed.pathname = "/";
+    }
+
+    return parsed.toString();
+  } catch {
+    return cleaned;
+  }
+}
+
+function normalizeLabel(value: string | undefined | null): string | null {
+  const cleaned = cleanText(value)?.toLowerCase();
+  if (!cleaned) {
+    return null;
+  }
+
+  const normalized = cleaned.replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeTitle(value: string | undefined | null): string | null {
+  const cleaned = normalizeLabel(value);
+  if (!cleaned) {
+    return null;
+  }
+
+  return cleaned
+    .split(" ")
+    .filter((token) => token.length > 1 && !TITLE_STOPWORDS.has(token))
+    .join(" ")
+    .trim();
+}
+
+function tokenize(value: string): Set<string> {
+  return new Set(
+    value
+      .split(" ")
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0)
+  );
+}
+
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) {
+    return 0;
+  }
+
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) {
+      intersection += 1;
+    }
+  }
+
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function referenceTimestamp(item: Partial<Hackathon>): number | null {
+  const candidate = item.start_date ?? item.deadline ?? item.end_date;
+  if (!candidate) {
+    return null;
+  }
+
+  const value = Date.parse(candidate);
+  if (Number.isNaN(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+function organizersAreSimilar(a: string | null, b: string | null): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  if (a === b || a.includes(b) || b.includes(a)) {
+    return true;
+  }
+
+  return jaccard(tokenize(a), tokenize(b)) >= SEMANTIC_ORGANIZER_SIMILARITY;
+}
+
+function titlesAreSimilar(a: string | null, b: string | null): boolean {
+  if (!a || !b) {
+    return false;
+  }
+
+  if (a === b || a.includes(b) || b.includes(a)) {
+    return true;
+  }
+
+  return jaccard(tokenize(a), tokenize(b)) >= SEMANTIC_TITLE_SIMILARITY;
+}
+
+function qualityScore(item: Partial<Hackathon>): number {
+  let score = 0;
+  if (item.description) score += 3;
+  if (item.start_date) score += 2;
+  if (item.deadline) score += 2;
+  if (item.organizer) score += 2;
+  if (item.image_url) score += 1;
+  if ((item.tags?.length ?? 0) > 0) score += 1;
+  if (item.is_online) score += 1;
+  return score;
+}
+
+function mergePreferRichest(
+  current: Partial<Hackathon>,
+  incoming: Partial<Hackathon>
+): Partial<Hackathon> {
+  const currentScore = qualityScore(current);
+  const incomingScore = qualityScore(incoming);
+
+  if (incomingScore > currentScore) {
+    return mergeHackathons(incoming, current);
+  }
+
+  return mergeHackathons(current, incoming);
+}
+
+function isSemanticDuplicate(
+  current: Partial<Hackathon>,
+  incoming: Partial<Hackathon>
+): boolean {
+  const currentTitle = normalizeTitle(current.title);
+  const incomingTitle = normalizeTitle(incoming.title);
+  if (!titlesAreSimilar(currentTitle, incomingTitle)) {
+    return false;
+  }
+
+  const currentTime = referenceTimestamp(current);
+  const incomingTime = referenceTimestamp(incoming);
+  if (currentTime === null || incomingTime === null) {
+    return false;
+  }
+
+  const dayDiff = Math.abs(currentTime - incomingTime) / (24 * 60 * 60 * 1_000);
+  if (dayDiff > SEMANTIC_DATE_WINDOW_DAYS) {
+    return false;
+  }
+
+  const currentOrganizer = normalizeLabel(current.organizer);
+  const incomingOrganizer = normalizeLabel(incoming.organizer);
+  return organizersAreSimilar(currentOrganizer, incomingOrganizer);
+}
+
+function dedupeSemantically(items: Partial<Hackathon>[]): {
+  items: Partial<Hackathon>[];
+  merged: number;
+} {
+  const unique: Partial<Hackathon>[] = [];
+  let merged = 0;
+
+  for (const item of items) {
+    let mergedIndex = -1;
+
+    for (let i = 0; i < unique.length; i += 1) {
+      if (isSemanticDuplicate(unique[i], item)) {
+        mergedIndex = i;
+        break;
+      }
+    }
+
+    if (mergedIndex >= 0) {
+      unique[mergedIndex] = mergePreferRichest(unique[mergedIndex], item);
+      merged += 1;
+      continue;
+    }
+
+    unique.push(item);
+  }
+
+  return { items: unique, merged };
+}
+
 function normalizeHackathon(item: Partial<Hackathon>): Partial<Hackathon> | null {
   const title = cleanText(item.title);
-  const url = cleanText(item.url);
+  const url = item.url ? canonicalizeUrl(item.url) : null;
 
   if (!title || !url) {
     return null;
@@ -70,12 +306,23 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
 
   const tasks: ScraperTask[] = [
     { name: "devpost", platform: "devpost", run: scrapeDevpost },
+    { name: "lablab", platform: "lablab", run: scrapeLablab },
     { name: "mlh", platform: "mlh", run: scrapeMLH },
     { name: "eventbrite-online", platform: "eventbrite", run: () => scrapeEventbrite("online") },
     { name: "eventbrite-us", platform: "eventbrite", run: () => scrapeEventbrite("united-states") },
+    { name: "eventbrite-ca", platform: "eventbrite", run: () => scrapeEventbrite("canada") },
     { name: "eventbrite-uk", platform: "eventbrite", run: () => scrapeEventbrite("united-kingdom") },
+    { name: "eventbrite-es", platform: "eventbrite", run: () => scrapeEventbrite("spain") },
+    { name: "eventbrite-fr", platform: "eventbrite", run: () => scrapeEventbrite("france") },
+    { name: "eventbrite-it", platform: "eventbrite", run: () => scrapeEventbrite("italy") },
+    { name: "eventbrite-nl", platform: "eventbrite", run: () => scrapeEventbrite("netherlands") },
     { name: "eventbrite-de", platform: "eventbrite", run: () => scrapeEventbrite("germany") },
     { name: "eventbrite-in", platform: "eventbrite", run: () => scrapeEventbrite("india") },
+    { name: "eventbrite-mx", platform: "eventbrite", run: () => scrapeEventbrite("mexico") },
+    { name: "eventbrite-br", platform: "eventbrite", run: () => scrapeEventbrite("brazil") },
+    { name: "eventbrite-ar", platform: "eventbrite", run: () => scrapeEventbrite("argentina") },
+    { name: "eventbrite-co", platform: "eventbrite", run: () => scrapeEventbrite("colombia") },
+    { name: "eventbrite-cl", platform: "eventbrite", run: () => scrapeEventbrite("chile") },
     { name: "gdg", platform: "gdg", run: scrapeGDG },
   ];
 
@@ -86,7 +333,12 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
 
   const collected: Partial<Hackathon>[] = [];
   const errors: string[] = [];
+  const sourceOutcomes: Record<
+    string,
+    { status: "success" | "failed"; fetched: number }
+  > = {};
   const platformOutcomes: Record<string, { ok: number; fail: number }> = {};
+  const metricWrites: Promise<void>[] = [];
 
   for (const task of tasks) {
     if (!platformOutcomes[task.platform]) {
@@ -99,9 +351,29 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
 
     if (result.status === "fulfilled") {
       platformOutcomes[task.platform].ok += 1;
+      sourceOutcomes[task.name] = {
+        status: "success",
+        fetched: result.value.length,
+      };
       console.info(
         `[scrapers] ${task.name} succeeded with ${result.value.length} items.`
       );
+
+      metricWrites.push(
+        recordScrapeSourceMetric({
+          runId: runStartedAt,
+          source: task.name,
+          platform: task.platform,
+          status: "success",
+          fetchedCount: result.value.length,
+        }).catch((error) => {
+          console.warn(
+            `[scrapers] Failed to record metrics for ${task.name}:`,
+            error
+          );
+        })
+      );
+
       collected.push(...result.value);
       return;
     }
@@ -111,9 +383,28 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
       result.reason instanceof Error
         ? result.reason.message
         : "Unknown scraper failure";
+    sourceOutcomes[task.name] = { status: "failed", fetched: 0 };
     errors.push(`${task.name}: ${message}`);
     console.error(`[scrapers] ${task.name} failed: ${message}`);
+
+    metricWrites.push(
+      recordScrapeSourceMetric({
+        runId: runStartedAt,
+        source: task.name,
+        platform: task.platform,
+        status: "failed",
+        fetchedCount: 0,
+        errorMessage: message,
+      }).catch((error) => {
+        console.warn(
+          `[scrapers] Failed to record metrics for ${task.name}:`,
+          error
+        );
+      })
+    );
   });
+
+  await Promise.all(metricWrites);
 
   const byUrl = new Map<string, Partial<Hackathon>>();
 
@@ -133,10 +424,22 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
     byUrl.set(normalized.url, mergeHackathons(existing, normalized));
   }
 
+  const semanticDeduped = dedupeSemantically(Array.from(byUrl.values()));
+  if (semanticDeduped.merged > 0) {
+    console.info(
+      `[scrapers] Semantic dedupe merged ${semanticDeduped.merged} potential duplicates.`
+    );
+  }
+
   let inserted = 0;
   let updated = 0;
 
-  for (const [url, item] of byUrl.entries()) {
+  for (const item of semanticDeduped.items) {
+    const url = item.url;
+    if (!url) {
+      continue;
+    }
+
     try {
       const existing = await getHackathonByUrl(url);
       await upsertHackathon({ ...item, scraped_at: runStartedAt });
@@ -199,12 +502,27 @@ export async function runAllScrapers(): Promise<RunAllScrapersResult> {
     console.error(`[scrapers] Failed to prune expired rows: ${message}`);
   }
 
+  let alerts: string[] = [];
+  try {
+    alerts = (await getScrapeSourceHealth(14))
+      .filter((metric) => metric.alert)
+      .map((metric) => `${metric.source}: ${metric.alert}`);
+
+    if (alerts.length > 0) {
+      console.warn(`[scrapers] Source health alerts: ${alerts.join(" | ")}`);
+    }
+  } catch (error) {
+    console.warn("[scrapers] Unable to compute source health alerts:", error);
+  }
+
   const summary: RunAllScrapersResult = {
-    total: byUrl.size,
+    total: semanticDeduped.items.length,
     inserted,
     updated,
     deleted: { stale: staleDeleted, expired: expiredDeleted },
     errors,
+    alerts,
+    sources: sourceOutcomes,
   };
 
   console.info(

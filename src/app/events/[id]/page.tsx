@@ -22,6 +22,7 @@ const PLATFORM_LABEL: Record<Platform, string> = {
   eventbrite: "Eventbrite",
   luma: "Luma",
   gdg: "GDG",
+  lablab: "Lablab.ai",
 };
 
 const PLATFORM_GRADIENT: Record<Platform, string> = {
@@ -30,6 +31,7 @@ const PLATFORM_GRADIENT: Record<Platform, string> = {
   eventbrite: "from-orange-500 to-amber-600",
   luma: "from-purple-500 to-fuchsia-600",
   gdg: "from-emerald-500 to-teal-600",
+  lablab: "from-blue-600 to-cyan-500",
 };
 
 function fmt(value: string | null): string | null {

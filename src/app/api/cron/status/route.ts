@@ -13,6 +13,14 @@ export async function GET(): Promise<Response> {
       {
         status: "ok",
         timestamp: new Date().toISOString(),
+        alerts:
+          stats.sourceHealth
+            ?.filter((item) => item.alert)
+            .map((item) => ({
+              source: item.source,
+              platform: item.platform,
+              message: item.alert,
+            })) ?? [],
         database: {
           totalHackathons: stats.total,
           embedded: stats.embedded,
@@ -20,6 +28,7 @@ export async function GET(): Promise<Response> {
           embeddingCoveragePercent: Math.round(stats.embeddingCoverage * 1000) / 10,
           latestScrapedAt: stats.latestScrapedAt,
           platformDistribution: stats.platformDistribution,
+          sourceHealth: stats.sourceHealth,
         },
         crons: {
           scrape: {

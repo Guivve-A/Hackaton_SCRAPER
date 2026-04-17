@@ -1,13 +1,25 @@
 "use client";
 
 import { Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
 
 import { HackathonCard } from "@/components/HackathonCard";
 import { SearchBar, type HackathonSearchHit } from "@/components/SearchBar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Hackathon, Platform } from "@/types/hackathon";
+
+const Scene3D = dynamic(
+  () => import("@/components/three/Scene3D").then((m) => m.Scene3D),
+  { ssr: false }
+);
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger, useGSAP);
+}
 
 type Filter =
   | { kind: "all" }
@@ -17,15 +29,13 @@ type Filter =
 const FILTERS: Array<{ id: string; label: string; filter: Filter }> = [
   { id: "all", label: "Todos", filter: { kind: "all" } },
   { id: "online", label: "Online", filter: { kind: "online", value: true } },
-  {
-    id: "presencial",
-    label: "Presencial",
-    filter: { kind: "online", value: false },
-  },
+  { id: "presencial", label: "Presencial", filter: { kind: "online", value: false } },
   { id: "devpost", label: "Devpost", filter: { kind: "platform", value: "devpost" } },
   { id: "mlh", label: "MLH", filter: { kind: "platform", value: "mlh" } },
   { id: "gdg", label: "GDG", filter: { kind: "platform", value: "gdg" } },
 ];
+
+const TITLE_WORDS = ["Descubre", "tu", "próximo", "hackathon"];
 
 export interface HomeExperienceProps {
   recent: Hackathon[];
@@ -36,6 +46,10 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
   const [searchResults, setSearchResults] = useState<HackathonSearchHit[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     const filter = FILTERS.find((f) => f.id === activeFilterId)?.filter;
@@ -49,61 +63,173 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
   const showingSearch = searchQuery.length > 0;
   const items = showingSearch ? (searchResults ?? []) : filtered;
 
+  useGSAP(
+    () => {
+      const hero = heroRef.current;
+      if (!hero) return;
+
+      const words = hero.querySelectorAll<HTMLElement>("[data-hero-word]");
+      const fadeUp = hero.querySelectorAll<HTMLElement>("[data-hero-fade]");
+
+      gsap.set(words, { yPercent: 110, opacity: 0 });
+      gsap.set(fadeUp, { y: 24, opacity: 0 });
+
+      const tl = gsap.timeline({
+        defaults: { ease: "expo.out" },
+        delay: 0.1,
+      });
+
+      tl.to(words, {
+        yPercent: 0,
+        opacity: 1,
+        duration: 1.2,
+        stagger: 0.08,
+      }).to(
+        fadeUp,
+        {
+          y: 0,
+          opacity: 1,
+          duration: 1.1,
+          stagger: 0.12,
+        },
+        "-=0.9"
+      );
+    },
+    { scope: rootRef }
+  );
+
+  useGSAP(
+    () => {
+      const grid = gridRef.current;
+      if (!grid) return;
+
+      const cards = grid.querySelectorAll<HTMLElement>("[data-card]");
+      if (cards.length === 0) return;
+
+      gsap.set(cards, { y: 40, opacity: 0 });
+
+      const batch = ScrollTrigger.batch(cards, {
+        start: "top 85%",
+        onEnter: (batch) =>
+          gsap.to(batch, {
+            y: 0,
+            opacity: 1,
+            duration: 0.9,
+            stagger: 0.08,
+            ease: "expo.out",
+            overwrite: true,
+          }),
+        once: true,
+      });
+
+      return () => {
+        batch.forEach((trigger) => trigger.kill());
+      };
+    },
+    { scope: rootRef, dependencies: [items.length, showingSearch, activeFilterId] }
+  );
+
   return (
-    <>
-      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50 via-white to-zinc-50 pb-12 pt-16 sm:pt-24">
-        <div className="absolute inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(circle_at_top,_rgba(79,70,229,0.18),_transparent_60%)]" />
-        <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 text-center sm:px-6">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white/70 px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">
-            <Sparkles className="size-3.5" />
-            Búsqueda semántica con IA
-          </span>
-          <h1 className="text-balance text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl">
-            Descubre tu próximo hackathon
-          </h1>
-          <p className="max-w-xl text-pretty text-base text-zinc-600 sm:text-lg">
-            Eventos de Devpost, MLH, Eventbrite y la comunidad GDG en un solo
-            lugar. Pregunta en lenguaje natural y deja que la IA encuentre el
-            match perfecto.
-          </p>
-          <SearchBar
-            size="lg"
-            className="mt-2 max-w-2xl"
-            onResults={(results, query) => {
-              setSearchResults(results);
-              setSearchQuery(query);
-            }}
-            onLoadingChange={setSearching}
-          />
+    <div ref={rootRef}>
+      <section
+        ref={heroRef}
+        className="relative h-[100vh] min-h-[720px] overflow-hidden bg-slate-950"
+      >
+        {/* BACK LAYER — WebGL */}
+        <div className="absolute inset-0 z-0">
+          <Scene3D />
+        </div>
+
+        {/* FRONT LAYER — UI */}
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center px-4 sm:px-6">
+          <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-7 text-center">
+            <div
+              data-hero-fade
+              className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.22em] text-white/70 backdrop-blur-xl"
+            >
+              <Sparkles className="size-3 text-cyan-200" />
+              Búsqueda semántica con IA
+            </div>
+
+            <h1 className="font-heading text-balance text-5xl font-[420] leading-[1.02] tracking-[-0.048em] text-white drop-shadow-[0_8px_40px_rgba(2,6,23,0.8)] sm:text-6xl md:text-7xl">
+              {TITLE_WORDS.map((word, i) => (
+                <span
+                  key={i}
+                  className="relative inline-block overflow-hidden pb-[0.15em] align-bottom"
+                >
+                  <span data-hero-word className="inline-block">
+                    {word}
+                  </span>
+                  {i < TITLE_WORDS.length - 1 && <span>&nbsp;</span>}
+                </span>
+              ))}
+            </h1>
+
+            <p
+              data-hero-fade
+              className="max-w-xl text-pretty text-[15px] leading-relaxed text-slate-200/85 drop-shadow-[0_4px_20px_rgba(2,6,23,0.7)] sm:text-base"
+            >
+              Eventos de Devpost, MLH, Eventbrite y la comunidad GDG en un solo
+              lugar. Pregunta en lenguaje natural y deja que la IA encuentre el
+              match perfecto.
+            </p>
+
+            <div data-hero-fade className="pointer-events-auto w-full max-w-2xl">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-1 shadow-[0_8px_40px_-12px_rgba(2,6,23,0.9)] backdrop-blur-2xl backdrop-saturate-150">
+                <SearchBar
+                  size="lg"
+                  placeholder="Ej: hackathons de IA online..."
+                  onResults={(results, query) => {
+                    setSearchResults(results);
+                    setSearchQuery(query);
+                  }}
+                  onLoadingChange={setSearching}
+                />
+              </div>
+            </div>
+
+            <div
+              data-hero-fade
+              className="flex items-center gap-4 text-[11px] uppercase tracking-[0.25em] text-slate-200/50"
+            >
+              <span>Devpost</span>
+              <span className="size-1 rounded-full bg-white/25" />
+              <span>MLH</span>
+              <span className="size-1 rounded-full bg-white/25" />
+              <span>Eventbrite</span>
+              <span className="size-1 rounded-full bg-white/25" />
+              <span>GDG</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-24 pt-10 sm:px-6">
-        <div className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-xl font-semibold text-zinc-900">
+      <section className="mx-auto w-full max-w-6xl px-4 pb-32 sm:px-6">
+        <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+          <div className="space-y-1.5">
+            <h2 className="font-heading tracking-luxury text-2xl font-light text-white/95 sm:text-3xl">
               {showingSearch
                 ? `Resultados para "${searchQuery}"`
                 : "Hackathons recientes"}
             </h2>
-            <p className="text-sm text-zinc-500">
+            <p className="text-[13px] text-white/45">
               {showingSearch
                 ? `${items.length} coincidencias semánticas`
-                : `${items.length} eventos en cartelera`}
+                : `${items.length} eventos curados en este momento`}
             </p>
           </div>
           {!showingSearch && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {FILTERS.map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setActiveFilterId(option.id)}
                   className={cn(
-                    "rounded-full border px-3.5 py-1.5 text-xs font-medium transition",
+                    "rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all duration-300",
                     activeFilterId === option.id
-                      ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
-                      : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
+                      ? "border-white/25 bg-white/10 text-white shadow-[0_4px_16px_-4px_rgba(139,92,246,0.3)]"
+                      : "border-white/8 bg-white/[0.02] text-white/55 hover:border-white/15 hover:bg-white/[0.05] hover:text-white/85"
                   )}
                 >
                   {option.label}
@@ -118,14 +244,19 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
         ) : items.length === 0 ? (
           <EmptyState searching={showingSearch} query={searchQuery} />
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            ref={gridRef}
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+          >
             {items.map((hackathon) => (
-              <HackathonCard key={hackathon.id} hackathon={hackathon} />
+              <div key={hackathon.id} data-card>
+                <HackathonCard hackathon={hackathon} />
+              </div>
             ))}
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 }
 
@@ -135,14 +266,21 @@ function CardGridSkeleton({ count }: { count: number }) {
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className="overflow-hidden rounded-xl border border-zinc-200/80 bg-white"
+          className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl"
         >
-          <Skeleton className="aspect-[16/9] w-full" />
+          <div className="relative aspect-[16/9] w-full bg-white/[0.04]">
+            <div className="absolute inset-0 shimmer" />
+          </div>
           <div className="space-y-3 p-5">
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-9 w-full" />
+            <div className="relative h-5 w-3/4 overflow-hidden rounded bg-white/[0.04]">
+              <div className="absolute inset-0 shimmer" />
+            </div>
+            <div className="relative h-4 w-1/2 overflow-hidden rounded bg-white/[0.04]">
+              <div className="absolute inset-0 shimmer" />
+            </div>
+            <div className="relative h-4 w-2/3 overflow-hidden rounded bg-white/[0.04]">
+              <div className="absolute inset-0 shimmer" />
+            </div>
           </div>
         </div>
       ))}
@@ -152,14 +290,14 @@ function CardGridSkeleton({ count }: { count: number }) {
 
 function EmptyState({ searching, query }: { searching: boolean; query: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-20 text-center backdrop-blur-xl">
+      <div className="flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-violet-300">
         <Search className="size-5" />
       </div>
-      <h3 className="text-base font-semibold text-zinc-900">
+      <h3 className="font-heading tracking-luxury text-lg font-light text-white/95">
         {searching ? "Sin resultados" : "Aún no hay hackathons"}
       </h3>
-      <p className="max-w-md text-sm text-zinc-600">
+      <p className="max-w-md text-[13px] leading-relaxed text-white/50">
         {searching
           ? `No encontramos hackathons que coincidan con "${query}". Prueba con otra descripción o ajusta los filtros.`
           : "Vuelve pronto, los scrapers se ejecutan diariamente."}

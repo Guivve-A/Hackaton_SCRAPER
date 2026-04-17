@@ -16,7 +16,9 @@ const searchSchema = z.object({
     .enum(["true", "false"])
     .optional()
     .transform((value) => (value === undefined ? undefined : value === "true")),
-  platform: z.enum(["devpost", "mlh", "eventbrite", "luma", "gdg"]).optional(),
+  platform: z
+    .enum(["devpost", "mlh", "eventbrite", "luma", "gdg", "lablab"])
+    .optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
 

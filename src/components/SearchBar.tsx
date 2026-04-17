@@ -3,7 +3,6 @@
 import { Loader2, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Hackathon } from "@/types/hackathon";
 
@@ -27,7 +26,7 @@ export interface SearchBarProps {
 }
 
 export function SearchBar({
-  placeholder = "Ej: hackathons de IA online con premios este mes...",
+  placeholder = "Ej: hackathons de IA online...",
   defaultValue = "",
   onResults,
   onLoadingChange,
@@ -41,6 +40,7 @@ export function SearchBar({
 }: SearchBarProps) {
   const [value, setValue] = useState(defaultValue);
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const skipNextRef = useRef(false);
 
@@ -124,42 +124,69 @@ export function SearchBar({
     }
   }
 
-  const heightClass = size === "lg" ? "h-14" : "h-11";
+  const heightClass = size === "lg" ? "h-16" : "h-12";
   const iconSize = size === "lg" ? "size-5" : "size-4";
+  const textSize = size === "lg" ? "text-[15px]" : "text-sm";
 
   return (
-    <div className={cn("relative w-full", className)}>
-      <Search
+    <div
+      className={cn(
+        "group relative w-full transition-all duration-400",
+        className
+      )}
+    >
+      <div
+        aria-hidden
         className={cn(
-          "pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400",
-          iconSize
+          "pointer-events-none absolute -inset-px rounded-2xl border border-white/[0.08] opacity-0 transition-opacity duration-400",
+          focused && "opacity-100"
         )}
       />
-      <Input
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKey}
-        placeholder={placeholder}
-        aria-label="Buscar hackathons"
+      <div
         className={cn(
-          "rounded-2xl border-zinc-200 bg-white pl-12 pr-12 text-base shadow-sm transition focus-visible:border-indigo-400 focus-visible:ring-indigo-200/60",
-          heightClass
+          "relative flex items-center rounded-2xl border border-white/[0.1] bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition-all",
+          heightClass,
+          focused &&
+            "border-white/[0.18] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_44px_-28px_rgba(125,146,179,0.55)]"
         )}
-      />
-      <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1">
-        {loading && (
-          <Loader2 className={cn("animate-spin text-indigo-500", iconSize)} />
-        )}
-        {!loading && value && (
-          <button
-            type="button"
-            onClick={handleClear}
-            aria-label="Limpiar búsqueda"
-            className="rounded-full p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
-          >
-            <X className={iconSize} />
-          </button>
-        )}
+      >
+        <Search
+          className={cn(
+            "pointer-events-none ml-5 text-slate-300/60 transition-colors",
+            iconSize,
+            focused && "text-slate-100/80"
+          )}
+        />
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKey}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder={placeholder}
+          aria-label="Buscar hackathons"
+          className={cn(
+            "tracking-luxury h-full flex-1 bg-transparent px-4 font-medium text-slate-100 placeholder:font-normal placeholder:text-slate-300/45 focus:outline-none",
+            textSize
+          )}
+        />
+        <div className="mr-4 flex items-center gap-1">
+          {loading && (
+            <Loader2
+              className={cn("animate-spin text-slate-200/85", iconSize)}
+            />
+          )}
+          {!loading && value && (
+            <button
+              type="button"
+              onClick={handleClear}
+              aria-label="Limpiar búsqueda"
+              className="rounded-full p-1.5 text-slate-300/55 transition-colors hover:bg-white/[0.04] hover:text-slate-100"
+            >
+              <X className={iconSize} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

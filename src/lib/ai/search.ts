@@ -1,5 +1,6 @@
 import { generateEmbedding } from "@/lib/ai/embeddings";
 import { matchHackathonsByEmbedding } from "@/lib/db/queries";
+import { rankSemanticResults } from "@/lib/ranking";
 import type { Hackathon, SearchParams } from "@/types/hackathon";
 
 export async function searchHackathons(
@@ -12,9 +13,11 @@ export async function searchHackathons(
 
   const embedding = await generateEmbedding(query);
 
-  return matchHackathonsByEmbedding(embedding, {
+  const results = await matchHackathonsByEmbedding(embedding, {
     online: params.online,
     platform: params.platform,
     matchCount: params.limit ?? 10,
   });
+
+  return rankSemanticResults(results);
 }

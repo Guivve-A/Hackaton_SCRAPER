@@ -41,3 +41,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# local docs / internal notes (keep README.md public)
+*.md
+!README.md
+
+# dev-only skill bundle (never ship)
+webgpu-claude-skill/
+
+# scraper fixtures
+lablab.html

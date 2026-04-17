@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { rankCatalogHackathons } from "@/lib/ranking";
 import type { Hackathon, Platform } from "@/types/hackathon";
 
 export type MatchOptions = {
@@ -41,6 +42,36 @@ type SearchRpcParams = {
   match_count: number;
   filter_online: boolean | null;
   filter_platform: string | null;
+};
+
+type ScrapeSourceMetricRow = {
+  source: string;
+  platform: string;
+  status: "success" | "failed";
+  fetched_count: number;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type ScrapeMetricStatus = "success" | "failed";
+
+export type ScrapeSourceMetricInput = {
+  runId: string;
+  source: string;
+  platform: string;
+  status: ScrapeMetricStatus;
+  fetchedCount: number;
+  errorMessage?: string | null;
+};
+
+export type SourceHealthMetric = {
+  source: string;
+  platform: string;
+  latestCount: number;
+  avgCount7d: number;
+  failureRate7d: number;
+  dropRatio: number | null;
+  alert: string | null;
 };
 
 let _readClient: SupabaseClient | null = null;
@@ -252,18 +283,21 @@ export async function getHackathonByUrl(url: string): Promise<Hackathon | null> 
 }
 
 export async function getRecentHackathons(limit = 10): Promise<Hackathon[]> {
+  const fetchLimit = Math.max(limit, 60);
+
   const { data, error } = await getReadClient()
     .from("hackathons")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(limit)
+    .limit(fetchLimit)
     .returns<HackathonRow[]>();
 
   if (error) {
     throw new Error(`Failed to get recent hackathons: ${error.message}`);
   }
 
-  return (data ?? []).map(toHackathon);
+  const ranked = rankCatalogHackathons((data ?? []).map(toHackathon));
+  return ranked.slice(0, limit);
 }
 
 export type SystemStats = {
@@ -273,6 +307,7 @@ export type SystemStats = {
   embeddingCoverage: number;
   latestScrapedAt: string | null;
   platformDistribution: Record<string, number>;
+  sourceHealth: SourceHealthMetric[] | null;
 };
 
 export async function getSystemStats(): Promise<SystemStats> {
@@ -321,6 +356,13 @@ export async function getSystemStats(): Promise<SystemStats> {
     platformDistribution[key] = (platformDistribution[key] ?? 0) + 1;
   }
 
+  let sourceHealth: SourceHealthMetric[] | null = null;
+  try {
+    sourceHealth = await getScrapeSourceHealth(14);
+  } catch (error) {
+    console.warn("[db] Source health metrics unavailable:", error);
+  }
+
   return {
     total: totalCount,
     embedded: embeddedCount,
@@ -329,6 +371,7 @@ export async function getSystemStats(): Promise<SystemStats> {
       totalCount === 0 ? 0 : Number((embeddedCount / totalCount).toFixed(4)),
     latestScrapedAt: latestRow?.scraped_at ?? null,
     platformDistribution,
+    sourceHealth,
   };
 }
 
@@ -342,11 +385,14 @@ export type ListHackathonsOptions = {
 export async function listHackathons(
   options: ListHackathonsOptions = {}
 ): Promise<Hackathon[]> {
+  const requestedLimit = options.limit ?? 60;
+  const fetchLimit = Math.max(requestedLimit, 120);
+
   let query = getReadClient()
     .from("hackathons")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(options.limit ?? 60);
+    .limit(fetchLimit);
 
   if (options.online !== undefined) {
     query = query.eq("is_online", options.online);
@@ -364,7 +410,8 @@ export async function listHackathons(
     throw new Error(`Failed to list hackathons: ${error.message}`);
   }
 
-  return (data ?? []).map(toHackathon);
+  const ranked = rankCatalogHackathons((data ?? []).map(toHackathon));
+  return ranked.slice(0, requestedLimit);
 }
 
 export async function pruneStaleByPlatform(
@@ -424,4 +471,99 @@ export async function updateTranslation(
   }
 
   return toHackathon(data);
+}
+
+export async function recordScrapeSourceMetric(
+  input: ScrapeSourceMetricInput
+): Promise<void> {
+  const payload = {
+    run_id: input.runId,
+    source: input.source,
+    platform: input.platform,
+    status: input.status,
+    fetched_count: Math.max(0, Math.trunc(input.fetchedCount)),
+    error_message: input.errorMessage ?? null,
+  };
+
+  const { error } = await getWriteClient()
+    .from("scrape_source_metrics")
+    .insert(payload);
+
+  if (error) {
+    throw new Error(`Failed to record scrape source metric: ${error.message}`);
+  }
+}
+
+export async function getScrapeSourceHealth(
+  windowDays = 14
+): Promise<SourceHealthMetric[]> {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1_000;
+  const cutoffIso = new Date(now - windowDays * dayMs).toISOString();
+  const sevenDaysAgo = now - 7 * dayMs;
+
+  const { data, error } = await getReadClient()
+    .from("scrape_source_metrics")
+    .select("source, platform, status, fetched_count, error_message, created_at")
+    .gte("created_at", cutoffIso)
+    .returns<ScrapeSourceMetricRow[]>();
+
+  if (error) {
+    throw new Error(`Failed to load scrape source health: ${error.message}`);
+  }
+
+  const bySource = new Map<string, ScrapeSourceMetricRow[]>();
+  for (const row of data ?? []) {
+    const bucket = bySource.get(row.source) ?? [];
+    bucket.push(row);
+    bySource.set(row.source, bucket);
+  }
+
+  const metrics: SourceHealthMetric[] = [];
+
+  for (const [source, rows] of bySource.entries()) {
+    rows.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    const latestSuccess = rows.find((row) => row.status === "success") ?? null;
+    const latestCount = latestSuccess?.fetched_count ?? 0;
+
+    const weeklyRows = rows.filter((row) => {
+      const ts = new Date(row.created_at).getTime();
+      return !Number.isNaN(ts) && ts >= sevenDaysAgo;
+    });
+
+    const successRows = weeklyRows.filter((row) => row.status === "success");
+    const failedRows = weeklyRows.filter((row) => row.status === "failed");
+
+    const avgCount =
+      successRows.length === 0
+        ? 0
+        : successRows.reduce((sum, row) => sum + row.fetched_count, 0) /
+          successRows.length;
+    const failureRate =
+      weeklyRows.length === 0 ? 0 : failedRows.length / weeklyRows.length;
+    const dropRatio = avgCount > 0 ? latestCount / avgCount : null;
+
+    let alert: string | null = null;
+    if (weeklyRows.length >= 3 && failureRate >= 0.4) {
+      alert = `High failure rate (${Math.round(failureRate * 100)}%)`;
+    } else if (avgCount >= 5 && dropRatio !== null && dropRatio <= 0.4) {
+      alert = `Volume drop (${Math.round(dropRatio * 100)}% of 7d avg)`;
+    }
+
+    metrics.push({
+      source,
+      platform: rows[0]?.platform ?? "unknown",
+      latestCount,
+      avgCount7d: Number(avgCount.toFixed(2)),
+      failureRate7d: Number(failureRate.toFixed(3)),
+      dropRatio: dropRatio === null ? null : Number(dropRatio.toFixed(3)),
+      alert,
+    });
+  }
+
+  return metrics.sort((a, b) => a.source.localeCompare(b.source));
 }

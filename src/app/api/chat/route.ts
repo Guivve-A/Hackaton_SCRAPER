@@ -10,9 +10,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { searchHackathons } from "@/lib/ai/search";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
+
+const CHAT_RATE_LIMIT = 12;
+const CHAT_WINDOW_MS = 60_000;
+const MAX_CHAT_MESSAGES = 40;
 
 if (!process.env.FIREWORKS_API_KEY) {
   throw new Error(
@@ -30,13 +35,13 @@ const FIREWORKS_MODEL =
   "accounts/fireworks/models/deepseek-v3p2";
 
 const chatRequestSchema = z.object({
-  messages: z.array(z.object({}).passthrough()),
+  messages: z.array(z.object({}).passthrough()).min(1).max(MAX_CHAT_MESSAGES),
 });
 
 const searchHackathonsSchema = z.object({
   query: z.string().trim().min(1).describe("Descripcion semantica de lo que busca"),
   online: z.boolean().optional().describe("Filtrar solo online"),
-  platform: z.enum(["devpost", "mlh", "eventbrite", "gdg"]).optional(),
+  platform: z.enum(["devpost", "mlh", "eventbrite", "gdg", "lablab"]).optional(),
   limit: z.number().int().min(1).max(20).default(5),
 });
 
@@ -104,6 +109,16 @@ function normalizeIncomingMessages(
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const ip = getClientIp(request);
+  const rate = checkRateLimit({
+    key: `chat:${ip}`,
+    limit: CHAT_RATE_LIMIT,
+    windowMs: CHAT_WINDOW_MS,
+  });
+  if (!rate.ok) {
+    return rate.response;
+  }
+
   const rawBody = await request.json().catch(() => null);
   const parsedBody = chatRequestSchema.safeParse(rawBody);
 

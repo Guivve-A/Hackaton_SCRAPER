@@ -7,20 +7,51 @@ import type { Hackathon } from "@/types/hackathon";
 export type EventbriteRegion =
   | "online"
   | "united-states"
+  | "canada"
   | "united-kingdom"
+  | "spain"
+  | "france"
+  | "italy"
+  | "netherlands"
   | "germany"
-  | "india";
+  | "india"
+  | "mexico"
+  | "brazil"
+  | "argentina"
+  | "colombia"
+  | "chile";
 
-const EVENTBRITE_URLS: Record<EventbriteRegion, string> = {
-  online: "https://www.eventbrite.com/d/online/hackathon/",
-  "united-states": "https://www.eventbrite.com/d/united-states/hackathon/",
-  "united-kingdom": "https://www.eventbrite.com/d/united-kingdom/hackathon/",
-  germany: "https://www.eventbrite.com/d/germany/hackathon/",
-  india: "https://www.eventbrite.com/d/india/hackathon/",
+const EVENTBRITE_REGION_PATHS: Record<EventbriteRegion, string> = {
+  online: "online",
+  "united-states": "united-states",
+  canada: "canada",
+  "united-kingdom": "united-kingdom",
+  spain: "spain",
+  france: "france",
+  italy: "italy",
+  netherlands: "netherlands",
+  germany: "germany",
+  india: "india",
+  mexico: "mexico",
+  brazil: "brazil",
+  argentina: "argentina",
+  colombia: "colombia",
+  chile: "chile",
 };
+
+const PRIMARY_SEARCH_TERM = "hackathon";
+const EXTRA_ONLINE_SEARCH_TERMS = [
+  "buildathon",
+  "ai-challenge",
+  "datathon",
+  "code-jam",
+] as const;
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const USER_AGENT = "Mozilla/5.0 (compatible; HackFinder/1.0)";
+const EVENT_KEYWORDS =
+  /\b(hack(?:athon|fest|day)?|buildathon|datathon|code\s*jam|codeathon|ai\s*challenge|innovation\s*challenge|coding\s*challenge|machine\s*learning\s*challenge)\b/i;
+const ONLINE_KEYWORDS = /\b(online|virtual|remote|hybrid|worldwide|global)\b/i;
 
 type EventbriteImage = {
   url?: string;
@@ -164,8 +195,12 @@ function parseEndDate(datePart: string | undefined, timePart: string | undefined
 }
 
 function isHackathonCandidate(title: string | null, summary: string | null): boolean {
-  const haystack = `${title ?? ""} ${summary ?? ""}`.toLowerCase();
-  return /hack/.test(haystack);
+  const haystack = `${title ?? ""} ${summary ?? ""}`;
+  return EVENT_KEYWORDS.test(haystack);
+}
+
+function isOnlineCandidate(text: string): boolean {
+  return ONLINE_KEYWORDS.test(text);
 }
 
 function extractServerDataEvents(html: string): EventbriteServerEvent[] {
@@ -240,12 +275,20 @@ function mapServerEvent(event: EventbriteServerEvent): Partial<Hackathon> | null
 
   const startDate = parseDate(event.start_date, event.start_time);
   const endDate = parseEndDate(event.end_date, event.end_time);
-  const isOnline = Boolean(event.is_online_event);
-  const location = isOnline
-    ? "Online"
-    : cleanText(event.primary_venue?.address?.localized_area_display) ??
-      cleanText(event.primary_venue?.address?.city) ??
-      cleanText(event.primary_venue?.name);
+  const venueText = cleanText(event.primary_venue?.name) ?? "";
+  const regionText =
+    cleanText(event.primary_venue?.address?.localized_area_display) ??
+    cleanText(event.primary_venue?.address?.city) ??
+    cleanText(event.primary_venue?.address?.addressRegion) ??
+    "";
+  const combined = `${title ?? ""} ${summary ?? ""} ${venueText} ${regionText}`;
+
+  const onlineLike = Boolean(event.is_online_event) || isOnlineCandidate(combined);
+  if (!onlineLike) {
+    return null;
+  }
+
+  const location = /hybrid/i.test(combined) ? "Online / Hybrid" : "Online";
 
   const mapped: Partial<Hackathon> = {
     title,
@@ -255,10 +298,10 @@ function mapServerEvent(event: EventbriteServerEvent): Partial<Hackathon> | null
     end_date: endDate,
     deadline: startDate,
     location,
-    is_online: isOnline,
+    is_online: true,
     image_url: cleanText(event.image?.url),
     organizer: null,
-    tags: [],
+    tags: [/hybrid/i.test(combined) ? "hybrid" : "online"],
   };
 
   if (summary) {
@@ -283,10 +326,20 @@ function mapJsonLdEvent(event: JsonLdEvent): Partial<Hackathon> | null {
 
   const startDate = cleanText(event.startDate);
   const endDate = cleanText(event.endDate);
-  const isOnline = cleanText(event.eventAttendanceMode)?.includes("Online") ?? false;
-  const location = isOnline
-    ? "Online"
-    : cleanText(event.location?.address?.addressLocality) ?? cleanText(event.location?.name);
+  const attendanceMode = cleanText(event.eventAttendanceMode) ?? "";
+  const locationText =
+    cleanText(event.location?.address?.addressLocality) ?? cleanText(event.location?.name) ?? "";
+  const onlineLike =
+    /OnlineEventAttendanceMode|MixedEventAttendanceMode/i.test(attendanceMode) ||
+    isOnlineCandidate(`${title ?? ""} ${description ?? ""} ${locationText}`);
+
+  if (!onlineLike) {
+    return null;
+  }
+
+  const location = /MixedEventAttendanceMode|hybrid/i.test(attendanceMode)
+    ? "Online / Hybrid"
+    : "Online";
 
   const mapped: Partial<Hackathon> = {
     title,
@@ -296,10 +349,10 @@ function mapJsonLdEvent(event: JsonLdEvent): Partial<Hackathon> | null {
     end_date: endDate,
     deadline: startDate,
     location,
-    is_online: isOnline,
+    is_online: true,
     image_url: cleanText(event.image),
     organizer: null,
-    tags: [],
+    tags: [location === "Online / Hybrid" ? "hybrid" : "online"],
   };
 
   if (description) {
@@ -333,25 +386,59 @@ function dedupeByUrl(items: Partial<Hackathon>[]): Partial<Hackathon>[] {
   return Array.from(map.values());
 }
 
+function buildSearchUrls(region: EventbriteRegion): string[] {
+  const regionPath = EVENTBRITE_REGION_PATHS[region];
+  const terms =
+    region === "online"
+      ? [PRIMARY_SEARCH_TERM, ...EXTRA_ONLINE_SEARCH_TERMS]
+      : [PRIMARY_SEARCH_TERM];
+
+  return terms.map(
+    (term) => `https://www.eventbrite.com/d/${regionPath}/${term}/`
+  );
+}
+
 export async function scrapeEventbrite(
   region: EventbriteRegion
 ): Promise<Partial<Hackathon>[]> {
-  const targetUrl = EVENTBRITE_URLS[region];
-  const { data: html } = await http.get<string>(targetUrl, {
-    responseType: "text",
+  const targetUrls = buildSearchUrls(region);
+  const settled = await Promise.allSettled(
+    targetUrls.map((url) =>
+      http.get<string>(url, {
+        responseType: "text",
+      })
+    )
+  );
+
+  const fromAllPages: Partial<Hackathon>[] = [];
+
+  settled.forEach((result, index) => {
+    if (result.status !== "fulfilled") {
+      const message =
+        result.reason instanceof Error
+          ? result.reason.message
+          : "Unknown Eventbrite page error";
+      console.warn(
+        `[scrapers][eventbrite:${region}] Failed ${targetUrls[index]}: ${message}`
+      );
+      return;
+    }
+
+    const html = result.value.data;
+    const fromServerData = extractServerDataEvents(html)
+      .map(mapServerEvent)
+      .filter((item): item is Partial<Hackathon> => item !== null);
+
+    const fromJsonLd = extractJsonLdEvents(html)
+      .map(mapJsonLdEvent)
+      .filter((item): item is Partial<Hackathon> => item !== null);
+
+    fromAllPages.push(...fromServerData, ...fromJsonLd);
   });
 
-  const fromServerData = extractServerDataEvents(html)
-    .map(mapServerEvent)
-    .filter((item): item is Partial<Hackathon> => item !== null);
-
-  const fromJsonLd = extractJsonLdEvents(html)
-    .map(mapJsonLdEvent)
-    .filter((item): item is Partial<Hackathon> => item !== null);
-
-  const merged = dedupeByUrl([...fromServerData, ...fromJsonLd]);
+  const merged = dedupeByUrl(fromAllPages);
   console.info(
-    `[scrapers][eventbrite:${region}] Parsed ${merged.length} hackathon-like events.`
+    `[scrapers][eventbrite:${region}] Parsed ${merged.length} online/hybrid events from ${targetUrls.length} search pages.`
   );
 
   return merged;
