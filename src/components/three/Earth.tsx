@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 
 const RADIUS = 2;
+const SEGMENTS = 48;
 
 export function Earth() {
   const earthRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
+  const { gl } = useThree();
 
   const [colorMap, normalMap, specularMap, cloudsMap] = useTexture([
     "/textures/earth-color.jpg",
@@ -19,15 +21,16 @@ export function Earth() {
   ]);
 
   useEffect(() => {
+    const maxAniso = Math.min(gl.capabilities.getMaxAnisotropy(), 8);
     /* eslint-disable react-hooks/immutability -- three.js textures are designed to be configured after load */
     colorMap.colorSpace = THREE.SRGBColorSpace;
     cloudsMap.colorSpace = THREE.SRGBColorSpace;
-    colorMap.anisotropy = 8;
-    normalMap.anisotropy = 8;
+    colorMap.anisotropy = maxAniso;
+    normalMap.anisotropy = maxAniso;
     colorMap.needsUpdate = true;
     cloudsMap.needsUpdate = true;
     /* eslint-enable react-hooks/immutability */
-  }, [colorMap, normalMap, cloudsMap]);
+  }, [colorMap, normalMap, cloudsMap, gl]);
 
   useFrame((_, delta) => {
     if (earthRef.current) {
@@ -41,7 +44,7 @@ export function Earth() {
   return (
     <group position={[0, -1, 0]}>
       <mesh ref={earthRef}>
-        <sphereGeometry args={[RADIUS, 64, 64]} />
+        <sphereGeometry args={[RADIUS, SEGMENTS, SEGMENTS]} />
         <meshStandardMaterial
           map={colorMap}
           normalMap={normalMap}
@@ -53,7 +56,7 @@ export function Earth() {
       </mesh>
 
       <mesh ref={cloudsRef}>
-        <sphereGeometry args={[RADIUS * 1.01, 64, 64]} />
+        <sphereGeometry args={[RADIUS * 1.01, SEGMENTS, SEGMENTS]} />
         <meshStandardMaterial
           map={cloudsMap}
           alphaMap={cloudsMap}

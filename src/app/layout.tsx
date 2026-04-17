@@ -37,11 +37,16 @@ export default function RootLayout({
       <head>
         <link
           rel="preload"
-          as="fetch"
-          href="/textures/night_sky_stars.hdr"
-          crossOrigin="anonymous"
+          as="image"
+          href="/textures/night_sky_stars.jpg"
+          fetchPriority="high"
         />
-        <link rel="preload" as="image" href="/textures/earth-color.jpg" />
+        <link
+          rel="preload"
+          as="image"
+          href="/textures/earth-color.jpg"
+          fetchPriority="high"
+        />
         <link rel="preload" as="image" href="/textures/earth-normal.jpg" />
         <link rel="preload" as="image" href="/textures/earth-specular.jpg" />
         <link rel="preload" as="image" href="/textures/earth-clouds.jpg" />
