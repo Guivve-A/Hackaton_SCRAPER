@@ -425,26 +425,36 @@ export async function getSystemStats(): Promise<SystemStats> {
   };
 }
 
+export const LIST_PAGE_SIZE = 24;
+
 export type ListHackathonsOptions = {
   online?: boolean;
   platform?: Platform;
   hasPrize?: boolean;
-  limit?: number;
   regions?: Region[] | null;
   includeUnknownOnline?: boolean;
+  page?: number;
+};
+
+export type PaginatedHackathons = {
+  items: Hackathon[];
+  hasNextPage: boolean;
+  page: number;
 };
 
 export async function listHackathons(
   options: ListHackathonsOptions = {}
-): Promise<Hackathon[]> {
-  const requestedLimit = options.limit ?? 60;
-  const fetchLimit = Math.max(requestedLimit, 120);
+): Promise<PaginatedHackathons> {
+  const page = Math.max(1, options.page ?? 1);
+  const from = (page - 1) * LIST_PAGE_SIZE;
+  const to = from + LIST_PAGE_SIZE; // inclusive → fetches PAGE_SIZE + 1 to detect next page
 
   let query = getReadClient()
     .from("hackathons")
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(fetchLimit);
+    .order("id", { ascending: false })
+    .range(from, to);
 
   if (options.online !== undefined) {
     query = query.eq("is_online", options.online);
@@ -465,8 +475,11 @@ export async function listHackathons(
     throw new Error(`Failed to list hackathons: ${error.message}`);
   }
 
-  const ranked = rankCatalogHackathons((data ?? []).map(toHackathon));
-  return ranked.slice(0, requestedLimit);
+  const rows = data ?? [];
+  const hasNextPage = rows.length > LIST_PAGE_SIZE;
+  const items = rows.slice(0, LIST_PAGE_SIZE).map(toHackathon);
+
+  return { items, hasNextPage, page };
 }
 
 export async function pruneStaleByPlatform(

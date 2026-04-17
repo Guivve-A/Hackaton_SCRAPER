@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import Link from "next/link";
 
 import { ChatWidget } from "@/components/ChatWidget";
@@ -6,11 +6,11 @@ import { EventsFilters } from "@/components/EventsFilters";
 import { HackathonCard } from "@/components/HackathonCard";
 import { SiteHeader } from "@/components/SiteHeader";
 import { searchHackathons } from "@/lib/ai/search";
-import { listHackathons } from "@/lib/db/queries";
+import { LIST_PAGE_SIZE, listHackathons } from "@/lib/db/queries";
 import { isScope, resolveScope, type Scope } from "@/lib/region";
 import type { Hackathon, Platform } from "@/types/hackathon";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 const VALID_PLATFORMS: ReadonlyArray<Platform> = [
   "devpost",
@@ -38,6 +38,11 @@ function asPlatform(value: string): Platform | undefined {
     : undefined;
 }
 
+function asPage(value: string): number {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 1 ? n : 1;
+}
+
 export default async function EventsPage({
   searchParams,
 }: {
@@ -49,42 +54,61 @@ export default async function EventsPage({
   const platformRaw = asString(params.platform);
   const prizeRaw = asString(params.prize);
   const scopeRaw = asString(params.scope);
+  const pageRaw = asString(params.page);
 
   const online = asOnline(onlineRaw);
   const platform = asPlatform(platformRaw);
   const hasPrize = prizeRaw === "1";
   const scope: Scope = isScope(scopeRaw) ? scopeRaw : "ecuador-friendly";
+  const page = asPage(pageRaw);
   const { regions, includeUnknownOnline, forceOnline } = resolveScope(scope);
   const effectiveOnline = online ?? forceOnline;
 
+  const isSearchMode = q.length >= 2;
+
   let items: Hackathon[] = [];
+  let hasNextPage = false;
   let errorMessage: string | null = null;
 
   try {
-    if (q.length >= 2) {
+    if (isSearchMode) {
       const hits = await searchHackathons({
         query: q,
         online,
         platform,
-        limit: 24,
+        limit: LIST_PAGE_SIZE,
         scope,
       });
       items = hasPrize ? hits.filter((h) => Boolean(h.prize_pool)) : hits;
     } else {
-      items = await listHackathons({
+      const result = await listHackathons({
         online: effectiveOnline,
         platform,
         hasPrize,
-        limit: 60,
         regions,
         includeUnknownOnline,
+        page,
       });
+      items = result.items;
+      hasNextPage = result.hasNextPage;
     }
   } catch (error) {
     console.error("[events] Failed to load:", error);
     errorMessage =
       "No pudimos cargar los hackathons. Intenta nuevamente en unos segundos.";
   }
+
+  const buildPageUrl = (targetPage: number) => {
+    const next = new URLSearchParams();
+    if (q) next.set("q", q);
+    if (onlineRaw) next.set("online", onlineRaw);
+    if (platformRaw) next.set("platform", platformRaw);
+    if (prizeRaw) next.set("prize", prizeRaw);
+    if (scope !== "ecuador-friendly") next.set("scope", scope);
+    if (targetPage > 1) next.set("page", String(targetPage));
+    const qs = next.toString();
+    return qs ? `/events?${qs}` : "/events";
+  };
 
   return (
     <>
@@ -117,22 +141,44 @@ export default async function EventsPage({
 
         <div className="mt-10 mb-5 flex items-center justify-between">
           <span className="text-[13px] text-white/55">
-            {q ? (
+            {isSearchMode ? (
               <>
-                <strong className="font-semibold text-white">
-                  {items.length}
-                </strong>{" "}
+                <strong className="font-semibold text-white">{items.length}</strong>{" "}
                 resultados para &quot;{q}&quot;
               </>
             ) : (
               <>
-                <strong className="font-semibold text-white">
-                  {items.length}
-                </strong>{" "}
-                eventos disponibles
+                Página{" "}
+                <strong className="font-semibold text-white">{page}</strong>
+                {!hasNextPage && items.length === 0
+                  ? " · sin más resultados"
+                  : null}
               </>
             )}
           </span>
+
+          {!isSearchMode && (page > 1 || hasNextPage) && (
+            <div className="flex items-center gap-2">
+              {page > 1 && (
+                <Link
+                  href={buildPageUrl(page - 1)}
+                  className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[12px] font-medium text-white/70 transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                >
+                  <ChevronLeft className="size-3.5" />
+                  Anterior
+                </Link>
+              )}
+              {hasNextPage && (
+                <Link
+                  href={buildPageUrl(page + 1)}
+                  className="flex items-center gap-1 rounded-full border border-violet-400/30 bg-violet-500/10 px-3 py-1.5 text-[12px] font-medium text-violet-200 transition-all hover:border-violet-400/50 hover:bg-violet-500/20"
+                >
+                  Siguiente
+                  <ChevronRight className="size-3.5" />
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         <section aria-label="Listado de hackathons" className="pb-6">
@@ -148,6 +194,29 @@ export default async function EventsPage({
             </div>
           )}
         </section>
+
+        {!isSearchMode && (page > 1 || hasNextPage) && items.length > 0 && (
+          <div className="mt-10 flex items-center justify-center gap-3">
+            {page > 1 && (
+              <Link
+                href={buildPageUrl(page - 1)}
+                className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2 text-[13px] font-medium text-white/70 transition-all hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+              >
+                <ChevronLeft className="size-4" />
+                Página anterior
+              </Link>
+            )}
+            {hasNextPage && (
+              <Link
+                href={buildPageUrl(page + 1)}
+                className="flex items-center gap-1.5 rounded-full border border-violet-400/30 bg-violet-500/10 px-5 py-2 text-[13px] font-medium text-violet-200 transition-all hover:border-violet-400/50 hover:bg-violet-500/20"
+              >
+                Página siguiente
+                <ChevronRight className="size-4" />
+              </Link>
+            )}
+          </div>
+        )}
       </main>
       <ChatWidget />
     </>
