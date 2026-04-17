@@ -220,7 +220,7 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
 
             <p
               data-hero-fade
-              className="max-w-xl text-pretty text-[15px] leading-relaxed text-slate-200/85 drop-shadow-[0_4px_20px_rgba(2,6,23,0.7)] sm:text-base"
+              className="max-w-xl text-pretty text-[15px] leading-relaxed text-cyan-100 drop-shadow-[0_0_8px_rgba(0,255,255,0.7)] animate-neon-pulse sm:text-base"
             >
               Eventos de Devpost, MLH, Eventbrite y la comunidad GDG en un solo
               lugar. Pregunta en lenguaje natural y deja que la IA encuentre el
