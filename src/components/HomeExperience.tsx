@@ -255,9 +255,11 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
             </div>
           </div>
         </div>
+
+        <div className="pointer-events-none absolute bottom-0 left-0 z-[1] h-32 w-full bg-gradient-to-b from-transparent to-[#020204]" />
       </section>
 
-      <section className="mx-auto w-full max-w-6xl px-4 pb-32 sm:px-6">
+      <section className="relative z-10 -mt-12 mx-auto w-full max-w-6xl px-4 pb-32 sm:px-6">
         <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
           <div className="space-y-1.5">
             <h2 className="font-heading tracking-luxury text-2xl font-light text-white/95 sm:text-3xl">
