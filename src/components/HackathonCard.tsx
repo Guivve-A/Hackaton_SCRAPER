@@ -53,8 +53,8 @@ export function HackathonCard({ hackathon, className }: HackathonCardProps) {
     <Link
       href={`/events/${hackathon.id}`}
       className={cn(
-        "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all duration-500",
-        "hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.05] hover:shadow-[0_20px_60px_-20px_rgba(139,92,246,0.35)]",
+        "group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur-sm transition-all duration-300",
+        "hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.04] hover:shadow-xl hover:shadow-cyan-500/10",
         className
       )}
     >

@@ -81,7 +81,7 @@ export default async function EventsPage({
   return (
     <>
       <SiteHeader />
-      <main className="relative mx-auto w-full max-w-6xl flex-1 px-4 pb-24 pt-16 sm:px-6 sm:pt-20">
+      <main className="relative mx-auto w-full max-w-6xl min-h-screen px-4 pb-32 pt-16 sm:px-6 sm:pt-20">
         <div
           aria-hidden
           className="pointer-events-none absolute left-1/2 top-0 -z-10 h-64 w-[700px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.16),transparent_65%)] blur-3xl"
@@ -126,17 +126,19 @@ export default async function EventsPage({
           </span>
         </div>
 
-        {errorMessage ? (
-          <ErrorState message={errorMessage} />
-        ) : items.length === 0 ? (
-          <EmptyState query={q} />
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((hackathon) => (
-              <HackathonCard key={hackathon.id} hackathon={hackathon} />
-            ))}
-          </div>
-        )}
+        <section aria-label="Listado de hackathons" className="pb-6">
+          {errorMessage ? (
+            <ErrorState message={errorMessage} />
+          ) : items.length === 0 ? (
+            <EmptyState query={q} />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+              {items.map((hackathon) => (
+                <HackathonCard key={hackathon.id} hackathon={hackathon} />
+              ))}
+            </div>
+          )}
+        </section>
       </main>
       <ChatWidget />
     </>
