@@ -138,23 +138,26 @@ export function SearchBar({
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -inset-px rounded-2xl border border-white/[0.08] opacity-0 transition-opacity duration-400",
-          focused && "opacity-100"
+          "pointer-events-none absolute -inset-[2px] rounded-[18px] opacity-0 blur-lg transition-opacity duration-500",
+          "bg-[radial-gradient(60%_100%_at_50%_50%,rgba(34,211,238,0.32),rgba(139,92,246,0.22)_55%,transparent_80%)]",
+          (focused || undefined) && "opacity-100",
+          "group-hover:opacity-80"
         )}
       />
       <div
         className={cn(
-          "relative flex items-center rounded-2xl border border-white/[0.1] bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition-all",
+          "relative flex items-center rounded-2xl border border-indigo-200/10 bg-[linear-gradient(135deg,rgba(30,27,75,0.45),rgba(15,23,42,0.32))] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-400",
           heightClass,
+          "group-hover:border-cyan-200/20 group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(34,211,238,0.10),0_22px_48px_-30px_rgba(34,211,238,0.35)]",
           focused &&
-            "border-white/[0.18] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_44px_-28px_rgba(125,146,179,0.55)]"
+            "border-cyan-200/30 bg-[linear-gradient(135deg,rgba(49,46,129,0.55),rgba(15,23,42,0.38))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(34,211,238,0.18),0_0_28px_-4px_rgba(34,211,238,0.40),0_22px_52px_-28px_rgba(139,92,246,0.45)]"
         )}
       >
         <Search
           className={cn(
             "pointer-events-none ml-5 text-slate-300/60 transition-colors",
             iconSize,
-            focused && "text-slate-100/80"
+            focused && "text-cyan-100/90"
           )}
         />
         <input

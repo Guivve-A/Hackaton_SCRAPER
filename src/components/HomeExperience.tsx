@@ -2,7 +2,7 @@
 
 import { Search, Sparkles } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -63,15 +63,60 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
   const showingSearch = searchQuery.length > 0;
   const items = showingSearch ? (searchResults ?? []) : filtered;
 
+  const handleTitlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLHeadingElement>) => {
+      const chars = event.currentTarget.querySelectorAll<HTMLElement>(
+        "[data-hero-char]"
+      );
+      const mx = event.clientX;
+      const my = event.clientY;
+      chars.forEach((char) => {
+        const rect = char.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dx = mx - cx;
+        const dy = my - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const influence = Math.max(0, 1 - dist / 140);
+        const push = -influence * 18;
+        const tilt = influence * (dx / 16);
+        gsap.to(char, {
+          y: push,
+          rotate: tilt,
+          duration: 0.55,
+          ease: "expo.out",
+          overwrite: "auto",
+        });
+      });
+    },
+    []
+  );
+
+  const handleTitlePointerLeave = useCallback(
+    (event: React.PointerEvent<HTMLHeadingElement>) => {
+      const chars = event.currentTarget.querySelectorAll<HTMLElement>(
+        "[data-hero-char]"
+      );
+      gsap.to(chars, {
+        y: 0,
+        rotate: 0,
+        duration: 1.2,
+        ease: "elastic.out(1, 0.55)",
+        overwrite: "auto",
+      });
+    },
+    []
+  );
+
   useGSAP(
     () => {
       const hero = heroRef.current;
       if (!hero) return;
 
-      const words = hero.querySelectorAll<HTMLElement>("[data-hero-word]");
+      const chars = hero.querySelectorAll<HTMLElement>("[data-hero-char]");
       const fadeUp = hero.querySelectorAll<HTMLElement>("[data-hero-fade]");
 
-      gsap.set(words, { yPercent: 110, opacity: 0 });
+      gsap.set(chars, { yPercent: 110, opacity: 0 });
       gsap.set(fadeUp, { y: 24, opacity: 0 });
 
       const tl = gsap.timeline({
@@ -79,11 +124,11 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
         delay: 0.1,
       });
 
-      tl.to(words, {
+      tl.to(chars, {
         yPercent: 0,
         opacity: 1,
-        duration: 1.2,
-        stagger: 0.08,
+        duration: 1.1,
+        stagger: 0.028,
       }).to(
         fadeUp,
         {
@@ -151,16 +196,30 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
               Búsqueda semántica con IA
             </div>
 
-            <h1 className="font-heading text-balance text-5xl font-[420] leading-[1.02] tracking-[-0.048em] text-white drop-shadow-[0_8px_40px_rgba(2,6,23,0.8)] sm:text-6xl md:text-7xl">
-              {TITLE_WORDS.map((word, i) => (
+            <h1
+              onPointerMove={handleTitlePointerMove}
+              onPointerLeave={handleTitlePointerLeave}
+              className="pointer-events-auto font-heading text-balance text-5xl font-[420] leading-[1.02] tracking-[-0.048em] text-white drop-shadow-[0_8px_40px_rgba(2,6,23,0.8)] sm:text-6xl md:text-7xl"
+            >
+              {TITLE_WORDS.map((word, wi) => (
                 <span
-                  key={i}
+                  key={wi}
                   className="relative inline-block overflow-hidden pb-[0.15em] align-bottom"
                 >
-                  <span data-hero-word className="inline-block">
-                    {word}
-                  </span>
-                  {i < TITLE_WORDS.length - 1 && <span>&nbsp;</span>}
+                  {Array.from(word).map((ch, ci) => (
+                    <span
+                      key={ci}
+                      data-hero-char
+                      className="inline-block will-change-transform"
+                    >
+                      {ch}
+                    </span>
+                  ))}
+                  {wi < TITLE_WORDS.length - 1 && (
+                    <span data-hero-char className="inline-block">
+                      &nbsp;
+                    </span>
+                  )}
                 </span>
               ))}
             </h1>
@@ -175,7 +234,7 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
             </p>
 
             <div data-hero-fade className="pointer-events-auto w-full max-w-2xl">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-1 shadow-[0_8px_40px_-12px_rgba(2,6,23,0.9)] backdrop-blur-2xl backdrop-saturate-150">
+              <div className="rounded-2xl border border-indigo-200/10 bg-[linear-gradient(135deg,rgba(30,27,75,0.38),rgba(15,23,42,0.22))] p-1 shadow-[0_10px_50px_-16px_rgba(2,6,23,0.95)] backdrop-blur-2xl backdrop-saturate-150">
                 <SearchBar
                   size="lg"
                   placeholder="Ej: hackathons de IA online..."
