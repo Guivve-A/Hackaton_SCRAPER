@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
+import { Environment } from "@react-three/drei";
 
 import { Earth } from "./Earth";
 import { InteractiveParticles } from "./InteractiveParticles";
@@ -21,6 +22,10 @@ export function Scene3D() {
       <ambientLight intensity={0.05} />
       <directionalLight position={[5, 3, 5]} intensity={2.5} color="#ffffff" />
       <Suspense fallback={null}>
+        <Environment
+          background
+          files="/textures/night_sky_stars.hdr"
+        />
         <Earth />
       </Suspense>
       <InteractiveParticles />
