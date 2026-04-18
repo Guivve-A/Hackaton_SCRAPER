@@ -1,3 +1,4 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type Bucket = {
@@ -6,8 +7,10 @@ type Bucket = {
 
 const buckets = new Map<string, Bucket>();
 const MAX_BUCKETS = 10_000;
-const UPSTASH_REDIS_REST_URL = process.env.UPSTASH_REDIS_REST_URL?.trim();
-const UPSTASH_REDIS_REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+
+let supabaseLimiterClient: SupabaseClient | null = null;
 
 let didLogDistributedLimiterError = false;
 
@@ -22,9 +25,32 @@ export type RateLimitResult =
   | { ok: false; response: Response };
 
 type DistributedRateResult = {
-  count: number;
-  retryAfterSec: number;
+  allowed: boolean;
+  remaining: number;
+  retry_after_sec: number;
+  current_count: number;
 };
+
+function getSupabaseLimiterClient(): SupabaseClient | null {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return null;
+  }
+
+  if (supabaseLimiterClient) {
+    return supabaseLimiterClient;
+  }
+
+  supabaseLimiterClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: {
+        "X-Client-Info": "hackfinder-rate-limiter",
+      },
+    },
+  });
+
+  return supabaseLimiterClient;
+}
 
 function buildRateLimitExceededResponse(
   config: RateLimitConfig,
@@ -46,84 +72,39 @@ function buildRateLimitExceededResponse(
   };
 }
 
-function getDistributedWindowState(windowMs: number, now: number) {
-  const safeWindowMs = Math.max(1_000, windowMs);
-  const windowStart = Math.floor(now / safeWindowMs) * safeWindowMs;
-  const resetAt = windowStart + safeWindowMs;
-  const retryAfterSec = Math.max(1, Math.ceil((resetAt - now) / 1_000));
-
-  return {
-    safeWindowMs,
-    windowStart,
-    retryAfterSec,
-  };
-}
-
-async function incrementDistributedCounter(
-  config: RateLimitConfig,
-  now: number
+async function checkRateLimitWithSupabase(
+  config: RateLimitConfig
 ): Promise<DistributedRateResult | null> {
-  if (!UPSTASH_REDIS_REST_URL || !UPSTASH_REDIS_REST_TOKEN) {
+  const client = getSupabaseLimiterClient();
+  if (!client) {
     return null;
   }
 
-  const { safeWindowMs, windowStart, retryAfterSec } = getDistributedWindowState(
-    config.windowMs,
-    now
-  );
-
-  const key = `ratelimit:${config.key}:${windowStart}`;
-  const encodedKey = encodeURIComponent(key);
-  const baseUrl = UPSTASH_REDIS_REST_URL.replace(/\/$/, "");
-  const headers = {
-    Authorization: `Bearer ${UPSTASH_REDIS_REST_TOKEN}`,
-  };
+  const windowSeconds = Math.max(1, Math.floor(config.windowMs / 1_000));
 
   try {
-    const incrResponse = await fetch(`${baseUrl}/incr/${encodedKey}`, {
-      method: "POST",
-      headers,
-      cache: "no-store",
-    });
+    const { data, error } = await client
+      .rpc("consume_api_rate_limit", {
+        p_bucket_key: config.key,
+        p_limit: config.limit,
+        p_window_seconds: windowSeconds,
+      })
+      .single<DistributedRateResult>();
 
-    if (!incrResponse.ok) {
-      throw new Error(`Upstash INCR failed with status ${incrResponse.status}`);
+    if (error) {
+      throw new Error(error.message);
     }
 
-    const incrPayload = (await incrResponse.json()) as { result?: number };
-    const count = Number(incrPayload.result);
-
-    if (!Number.isFinite(count) || count <= 0) {
-      throw new Error("Upstash INCR returned an invalid counter value");
+    if (!data || typeof data.allowed !== "boolean") {
+      throw new Error("Supabase rate limiter returned an invalid payload");
     }
 
-    // Set TTL only on first hit of the window key.
-    if (count === 1) {
-      const ttlSec = Math.max(1, Math.ceil(safeWindowMs / 1_000));
-
-      const expireResponse = await fetch(
-        `${baseUrl}/expire/${encodedKey}/${ttlSec}`,
-        {
-          method: "POST",
-          headers,
-          cache: "no-store",
-        }
-      );
-
-      if (!expireResponse.ok) {
-        throw new Error(`Upstash EXPIRE failed with status ${expireResponse.status}`);
-      }
-    }
-
-    return {
-      count,
-      retryAfterSec,
-    };
+    return data;
   } catch (error) {
     if (!didLogDistributedLimiterError) {
       didLogDistributedLimiterError = true;
       console.error(
-        "[rate-limit] Distributed limiter unavailable, falling back to in-memory limiter:",
+        "[rate-limit] Supabase distributed limiter unavailable, falling back to in-memory limiter:",
         error
       );
     }
@@ -170,16 +151,19 @@ export async function checkRateLimit(
   config: RateLimitConfig
 ): Promise<RateLimitResult> {
   const now = Date.now();
-  const distributed = await incrementDistributedCounter(config, now);
+  const distributed = await checkRateLimitWithSupabase(config);
 
   if (distributed) {
-    if (distributed.count > config.limit) {
-      return buildRateLimitExceededResponse(config, distributed.retryAfterSec);
+    if (!distributed.allowed) {
+      return buildRateLimitExceededResponse(
+        config,
+        Math.max(1, Number(distributed.retry_after_sec) || 1)
+      );
     }
 
     return {
       ok: true,
-      remaining: Math.max(0, config.limit - distributed.count),
+      remaining: Math.max(0, Number(distributed.remaining) || 0),
     };
   }
 
