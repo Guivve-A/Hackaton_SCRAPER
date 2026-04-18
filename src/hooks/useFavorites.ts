@@ -1,24 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "hackfinder:favorites:v1";
 
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<Set<number>>(new Set());
-  const [hydrated, setHydrated] = useState(false);
+  const [favorites, setFavorites] = useState<Set<number>>(() => {
+    if (typeof window === "undefined") {
+      return new Set();
+    }
 
-  useEffect(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
       if (Array.isArray(raw)) {
-        setFavorites(new Set((raw as unknown[]).filter((v): v is number => Number.isFinite(v))));
+        return new Set((raw as unknown[]).filter((v): v is number => Number.isFinite(v)));
       }
     } catch {
       // ignore parse errors
     }
-    setHydrated(true);
-  }, []);
+
+    return new Set();
+  });
+
+  const hydrated = typeof window !== "undefined";
 
   const toggle = useCallback((id: number) => {
     setFavorites((prev) => {

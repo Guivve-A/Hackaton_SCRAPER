@@ -19,10 +19,10 @@ const MAX_SUGGESTION_BODY_BYTES = 24 * 1024;
 
 const optionalSanitizedTextSchema = (maxChars: number) =>
   z
-    .string()
-    .transform((value) => sanitizeInputText(value))
-    .max(maxChars)
-    .optional()
+    .preprocess(
+      (value) => (typeof value === "string" ? sanitizeInputText(value) : value),
+      z.string().max(maxChars).optional()
+    )
     .transform((value) => (value && value.length > 0 ? value : undefined));
 
 const suggestionSchema = z.object({
@@ -32,10 +32,10 @@ const suggestionSchema = z.object({
     maxMessage: "Title must be at most 180 characters",
   }),
   url: z
-    .string()
-    .transform((value) => sanitizeInputText(value))
-    .url("Invalid URL")
-    .max(400, "URL must be at most 400 characters"),
+    .preprocess(
+      (value) => (typeof value === "string" ? sanitizeInputText(value) : value),
+      z.string().url("Invalid URL").max(400, "URL must be at most 400 characters")
+    ),
   description: createSanitizedTextSchema(3_000, {
     minChars: 12,
     requiredMessage: "Description is required",
@@ -50,9 +50,10 @@ const suggestionSchema = z.object({
     }
   ),
   website: z
-    .string()
-    .transform((value) => sanitizeInputText(value))
-    .optional(),
+    .preprocess(
+      (value) => (typeof value === "string" ? sanitizeInputText(value) : value),
+      z.string().optional()
+    ),
 });
 
 const SPAM_PATTERNS = [

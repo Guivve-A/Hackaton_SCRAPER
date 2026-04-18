@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
+  stepCountIs,
   streamText,
   tool,
   type UIMessage,
@@ -347,7 +348,7 @@ export async function POST(request: Request): Promise<Response> {
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       tools,
-      maxSteps: 5,
+      stopWhen: stepCountIs(5),
     });
 
     return result.toUIMessageStreamResponse({
