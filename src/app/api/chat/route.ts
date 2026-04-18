@@ -402,7 +402,6 @@ export async function POST(request: Request): Promise<Response> {
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       tools: shouldUseSearchTool ? tools : {},
-      maxSteps: 5,
       stopWhen: shouldUseSearchTool ? stepCountIs(2) : stepCountIs(5),
     } satisfies Parameters<typeof streamText>[0];
 
