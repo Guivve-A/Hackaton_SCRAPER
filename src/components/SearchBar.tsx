@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ export interface SearchBarProps {
   platform?: string;
   limit?: number;
   autoSearch?: boolean;
+  redirectToEvents?: boolean;
 }
 
 export function SearchBar({
@@ -37,7 +39,9 @@ export function SearchBar({
   platform,
   limit = 12,
   autoSearch = true,
+  redirectToEvents = false,
 }: SearchBarProps) {
+  const router = useRouter();
   const [value, setValue] = useState(defaultValue);
   const [loading, setLoading] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -49,7 +53,7 @@ export function SearchBar({
   }, [loading, onLoadingChange]);
 
   useEffect(() => {
-    if (!autoSearch) return;
+    if (!autoSearch || redirectToEvents) return;
 
     if (skipNextRef.current) {
       skipNextRef.current = false;
@@ -71,7 +75,13 @@ export function SearchBar({
 
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, online, platform, limit, autoSearch]);
+  }, [value, online, platform, limit, autoSearch, redirectToEvents]);
+
+  useEffect(() => {
+    if (!redirectToEvents) return;
+    abortRef.current?.abort();
+    setLoading(false);
+  }, [redirectToEvents]);
 
   async function runSearch(query: string) {
     abortRef.current?.abort();
@@ -84,7 +94,7 @@ export function SearchBar({
       if (online !== undefined) params.set("online", String(online));
       if (platform) params.set("platform", platform);
 
-      const res = await fetch(`/api/search?${params.toString()}`, {
+      const res = await fetch("/api/search?" + params.toString(), {
         signal: controller.signal,
         cache: "no-store",
       });
@@ -115,12 +125,24 @@ export function SearchBar({
     onResults?.([], "");
   }
 
+  function handleSearchAction(query: string) {
+    onSubmit?.(query);
+
+    if (redirectToEvents && query.trim().length >= MIN_CHARS) {
+      router.push("/events?q=" + encodeURIComponent(query));
+      return;
+    }
+
+    if (autoSearch && query.trim().length >= MIN_CHARS) {
+      void runSearch(query);
+    }
+  }
+
   function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
       const trimmed = value.trim();
-      onSubmit?.(trimmed);
-      if (autoSearch && trimmed.length >= MIN_CHARS) void runSearch(trimmed);
+      handleSearchAction(trimmed);
     }
   }
 
@@ -153,13 +175,20 @@ export function SearchBar({
             "border-cyan-200/30 bg-[linear-gradient(135deg,rgba(49,46,129,0.55),rgba(15,23,42,0.38))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_0_1px_rgba(34,211,238,0.18),0_0_28px_-4px_rgba(34,211,238,0.40),0_22px_52px_-28px_rgba(139,92,246,0.45)]"
         )}
       >
-        <Search
+        <button
+          type="button"
+          onClick={() => handleSearchAction(value.trim())}
+          aria-label="Ejecutar búsqueda"
           className={cn(
-            "pointer-events-none ml-5 text-slate-300/60 transition-colors",
-            iconSize,
-            focused && "text-cyan-100/90"
+            "ml-3 flex size-9 items-center justify-center rounded-xl text-slate-300/60 transition-colors",
+            "hover:text-cyan-100/90",
+            focused && "text-cyan-100/90",
+            value.trim().length < MIN_CHARS && "cursor-not-allowed opacity-60"
           )}
-        />
+          disabled={value.trim().length < MIN_CHARS}
+        >
+          <Search className={iconSize} />
+        </button>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -169,7 +198,7 @@ export function SearchBar({
           placeholder={placeholder}
           aria-label="Buscar hackathons"
           className={cn(
-            "tracking-luxury h-full flex-1 bg-transparent px-4 font-medium text-slate-100 placeholder:font-normal placeholder:text-slate-300/45 focus:outline-none",
+            "tracking-luxury h-full flex-1 bg-transparent px-3 font-medium text-slate-100 placeholder:font-normal placeholder:text-slate-300/45 focus:outline-none",
             textSize
           )}
         />

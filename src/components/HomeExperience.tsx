@@ -2,10 +2,11 @@
 
 import { Search } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { useRouter } from "next/navigation";
 
 import { AssetPreloader } from "@/components/AssetPreloader";
 import { HackathonCard } from "@/components/HackathonCard";
@@ -47,6 +48,7 @@ export interface HomeExperienceProps {
 }
 
 export function HomeExperience({ recent }: HomeExperienceProps) {
+  const router = useRouter();
   const [activeFilterId, setActiveFilterId] = useState("all");
   const [searchResults, setSearchResults] = useState<HackathonSearchHit[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -67,6 +69,10 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
 
   const showingSearch = searchQuery.length > 0;
   const items = showingSearch ? (searchResults ?? []) : filtered;
+
+  useEffect(() => {
+    router.prefetch("/events");
+  }, [router]);
 
   const handleTitlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLHeadingElement>) => {
@@ -281,6 +287,7 @@ export function HomeExperience({ recent }: HomeExperienceProps) {
                 <SearchBar
                   size="lg"
                   placeholder="Ej: hackathons de IA online..."
+                  redirectToEvents={true}
                   onResults={(results, query) => {
                     setSearchResults(results);
                     setSearchQuery(query);
