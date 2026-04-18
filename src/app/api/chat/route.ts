@@ -1,7 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
-  stepCountIs,
   streamText,
   tool,
   type UIMessage,
@@ -99,6 +98,7 @@ Objetivo: responder rapido, util y con formato claro.
 Reglas de herramienta:
 - Usa searchHackathons SOLO cuando el usuario este buscando, comparando o pidiendo recomendaciones de eventos.
 - Para saludos, dudas generales o preguntas no relacionadas a eventos, NO llames herramientas.
+- Cuando necesites buscar hackatones, DEBES usar obligatoriamente la llamada a la herramienta nativa (tool call). NUNCA imprimas el JSON de la funcion dentro de tu respuesta de texto. Responde directamente al usuario usando los resultados devueltos por la herramienta.
 
 Reglas de alcance geografico (scope):
 - Por defecto usa 'ecuador-friendly' (Ecuador, LATAM y online globales accesibles desde Ecuador).
@@ -347,7 +347,7 @@ export async function POST(request: Request): Promise<Response> {
       system: SYSTEM_PROMPT,
       messages: modelMessages,
       tools,
-      stopWhen: stepCountIs(3),
+      maxSteps: 5,
     });
 
     return result.toUIMessageStreamResponse({

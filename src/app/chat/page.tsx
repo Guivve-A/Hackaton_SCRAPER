@@ -66,6 +66,14 @@ function renderSafeMarkdown(markdown: string): string {
   });
 }
 
+function isRawToolJsonLeak(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /^\{\s*"type"\s*:\s*"function"/i.test(trimmed) ||
+    /^\{\s*"name"\s*:/i.test(trimmed)
+  );
+}
+
 export default function ChatPage() {
   const { messages, input, handleInputChange, handleSubmit, sendPrompt, isLoading } =
     useChat();
@@ -212,6 +220,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const parts = (message.parts ?? []) as ToolPart[];
 
+  const hasRenderablePart = parts.some((part) => {
+    if (part.type !== "text") return true;
+
+    const text = (part as { text?: string }).text ?? "";
+    if (!text.trim()) return false;
+    if (!isUser && isRawToolJsonLeak(text)) return false;
+    return true;
+  });
+
+  if (!hasRenderablePart) return null;
+
   return (
     <div
       className={cn(
@@ -248,6 +267,7 @@ function PartRenderer({ part, isUser }: { part: ToolPart; isUser: boolean }) {
   if (part.type === "text") {
     const text = (part as { text?: string }).text ?? "";
     if (!text) return null;
+    if (!isUser && isRawToolJsonLeak(text)) return null;
 
     const sanitizedHtml = isUser ? "" : renderSafeMarkdown(text);
 
