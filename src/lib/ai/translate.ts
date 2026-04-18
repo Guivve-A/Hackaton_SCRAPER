@@ -1,4 +1,5 @@
 import { getHackathonsWithoutTranslation, updateTranslation } from "@/lib/db/queries";
+import { stripThinkBlocks, TRANSLATE_SYSTEM_PROMPT } from "@/lib/ai/sanitize-output";
 
 const FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1";
 const BATCH_SIZE = 5;
@@ -19,10 +20,11 @@ function getFireworksKey(): string {
 }
 
 function getModel(): string {
+  // Default to a direct instruction-tuned model — reasoning models leak
+  // their chain-of-thought as <think> blocks into the translation output.
   return (
     process.env.FIREWORKS_TRANSLATE_MODEL?.trim() ||
-    process.env.FIREWORKS_MODEL?.trim() ||
-    "accounts/fireworks/models/deepseek-v3p2"
+    "accounts/fireworks/models/llama-v3p3-70b-instruct"
   );
 }
 
@@ -46,10 +48,7 @@ async function translateOne(description: string): Promise<string> {
       body: JSON.stringify({
         model: getModel(),
         messages: [
-          {
-            role: "system",
-            content: "Eres un traductor y resumidor preciso. Respondes solo con el texto final solicitado.",
-          },
+          { role: "system", content: TRANSLATE_SYSTEM_PROMPT },
           { role: "user", content: prompt },
         ],
         max_tokens: 200,
@@ -65,7 +64,8 @@ async function translateOne(description: string): Promise<string> {
     }
 
     const json = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
-    const translated = json.choices?.[0]?.message?.content?.trim();
+    const raw = json.choices?.[0]?.message?.content ?? "";
+    const translated = stripThinkBlocks(raw);
     if (!translated) throw new Error("Empty translation response");
     return translated;
   } finally {

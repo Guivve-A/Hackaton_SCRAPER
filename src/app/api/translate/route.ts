@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getHackathonById, updateTranslation } from "@/lib/db/queries";
+import {
+  stripThinkBlocks,
+  TRANSLATE_SYSTEM_PROMPT,
+} from "@/lib/ai/sanitize-output";
 
 export const runtime = "nodejs";
 
@@ -14,10 +18,12 @@ if (!process.env.FIREWORKS_API_KEY) {
 const FIREWORKS_API_KEY = process.env.FIREWORKS_API_KEY || "";
 const FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1";
 
+// Default to a direct instruction-tuned model (no chain-of-thought) for
+// translation. Reasoning models like deepseek-r1 leak their <think> process
+// into the output, which is a dealbreaker for a translation API.
 const FIREWORKS_TRANSLATE_MODEL =
   process.env.FIREWORKS_TRANSLATE_MODEL?.trim() ||
-  process.env.FIREWORKS_MODEL?.trim() ||
-  "accounts/fireworks/models/deepseek-v3p2";
+  "accounts/fireworks/models/llama-v3p3-70b-instruct";
 
 const fireworksTranslateResponseSchema = z.object({
   choices: z
@@ -62,11 +68,7 @@ async function translateWithFireworks(
     body: JSON.stringify({
       model: FIREWORKS_TRANSLATE_MODEL,
       messages: [
-        {
-          role: "system",
-          content:
-            "Eres un traductor y resumidor preciso. Respondes solo con el texto final solicitado.",
-        },
+        { role: "system", content: TRANSLATE_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       max_tokens: 200,
@@ -88,7 +90,8 @@ async function translateWithFireworks(
     throw new Error("Unexpected Fireworks response shape for translation.");
   }
 
-  const translated = parsed.data.choices[0]?.message.content?.trim();
+  const rawContent = parsed.data.choices[0]?.message.content ?? "";
+  const translated = stripThinkBlocks(rawContent);
   if (!translated) {
     throw new Error("Translation provider returned an empty translation.");
   }
