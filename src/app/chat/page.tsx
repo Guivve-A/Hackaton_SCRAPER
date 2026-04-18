@@ -211,19 +211,17 @@ export default function ChatPage() {
             </div>
           </header>
 
-          <div className="flex h-[70vh] min-h-[500px] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#121212]/80 shadow-2xl backdrop-blur-md">
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 scroll-smooth sm:p-6">
-              <div className="space-y-6">
-                {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
-                ))}
+          <div className="relative z-20 flex h-[70vh] min-h-[500px] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#121212]/80 shadow-2xl backdrop-blur-md pointer-events-auto">
+            <div className="relative z-30 min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pr-4 space-y-6 scroll-smooth pointer-events-auto sm:p-6 sm:pr-6">
+              {messages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))}
 
-                {isLoading && messages.at(-1)?.role !== "assistant" && (
-                  <TypingIndicator />
-                )}
+              {isLoading && messages.at(-1)?.role !== "assistant" && (
+                <TypingIndicator />
+              )}
 
-                <div ref={messagesEndRef} />
-              </div>
+              <div ref={messagesEndRef} />
             </div>
 
             {messages.length <= 1 && (
