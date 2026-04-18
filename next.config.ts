@@ -83,6 +83,30 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      // Static 3D texture assets are content-addressed by path and never
+      // mutate — serve them with an immutable year-long cache so repeat
+      // visits skip the network entirely.
+      {
+        source: "/textures/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      // Next/Image-optimized responses: cache the generated variants
+      // aggressively at the edge. The underlying source URL already
+      // determines uniqueness, so immutable is safe here too.
+      {
+        source: "/_next/image:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
     ];
   },
 };

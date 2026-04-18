@@ -98,7 +98,7 @@ export function HackathonCard({ hackathon, className }: HackathonCardProps) {
             src={hackathon.image_url}
             alt={hackathon.title}
             fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.08]"
             placeholder="blur"
             blurDataURL={BLUR_PLACEHOLDER}
