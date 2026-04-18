@@ -14,7 +14,7 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    const useNativeScroll = pathname.startsWith("/events");
+    const useNativeScroll = pathname.startsWith("/events") || pathname.startsWith("/chat");
     if (useNativeScroll) return;
 
     const lenis = new Lenis({
