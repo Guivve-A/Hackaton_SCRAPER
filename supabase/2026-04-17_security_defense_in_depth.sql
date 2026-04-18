@@ -73,7 +73,6 @@ RETURNS TABLE (
   tags TEXT[],
   image_url TEXT,
   organizer TEXT,
-  embedding VECTOR(384),
   scraped_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ,
   region TEXT,
@@ -87,7 +86,36 @@ AS $$
 DECLARE
   safe_match_count INT := LEAST(GREATEST(COALESCE(match_count, 10), 1), 50);
   safe_match_threshold FLOAT := LEAST(GREATEST(COALESCE(match_threshold, 0.4), 0), 1);
+  safe_filter_platform TEXT := CASE
+    WHEN filter_platform IS NULL THEN NULL
+    WHEN filter_platform = ANY (ARRAY['devpost', 'mlh', 'eventbrite', 'gdg', 'lablab', 'luma'])
+      THEN filter_platform
+    ELSE NULL
+  END;
+  safe_filter_regions TEXT[] := NULL;
 BEGIN
+  IF filter_platform IS NOT NULL AND safe_filter_platform IS NULL THEN
+    RAISE EXCEPTION 'Invalid filter_platform value';
+  END IF;
+
+  IF filter_regions IS NOT NULL THEN
+    IF COALESCE(array_length(filter_regions, 1), 0) > 8 THEN
+      RAISE EXCEPTION 'Too many filter_regions values';
+    END IF;
+
+    SELECT ARRAY(
+      SELECT DISTINCT region_value
+      FROM unnest(filter_regions) AS region_value
+      WHERE region_value IN ('ecuador', 'latam', 'global', 'other')
+      LIMIT 8
+    )
+    INTO safe_filter_regions;
+
+    IF COALESCE(array_length(safe_filter_regions, 1), 0) = 0 THEN
+      RAISE EXCEPTION 'Invalid filter_regions values';
+    END IF;
+  END IF;
+
   RETURN QUERY
   SELECT
     h.id,
@@ -106,7 +134,6 @@ BEGIN
     h.tags,
     h.image_url,
     h.organizer,
-    h.embedding,
     h.scraped_at,
     h.created_at,
     h.region,
@@ -115,10 +142,10 @@ BEGIN
   WHERE h.embedding IS NOT NULL
     AND 1 - (h.embedding <=> query_embedding) > safe_match_threshold
     AND (filter_online IS NULL OR h.is_online = filter_online)
-    AND (filter_platform IS NULL OR h.platform = filter_platform)
+    AND (safe_filter_platform IS NULL OR h.platform = safe_filter_platform)
     AND (
-      filter_regions IS NULL
-      OR h.region = ANY(filter_regions)
+      safe_filter_regions IS NULL
+      OR h.region = ANY(safe_filter_regions)
       OR (include_unknown_region_online AND h.region IS NULL AND h.is_online = true)
     )
     AND (h.deadline IS NULL OR h.deadline >= NOW())

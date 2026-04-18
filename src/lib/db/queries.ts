@@ -31,12 +31,12 @@ type HackathonRow = {
   image_url: string | null;
   organizer: string | null;
   region: Region | null;
-  embedding: number[] | null;
+  embedding?: number[] | null;
   scraped_at: string;
   created_at: string;
 };
 
-type MatchHackathonRow = HackathonRow & {
+type MatchHackathonRow = Omit<HackathonRow, "embedding"> & {
   similarity: number;
 };
 
