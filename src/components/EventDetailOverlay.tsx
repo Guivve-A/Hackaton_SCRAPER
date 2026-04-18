@@ -231,7 +231,6 @@ export function EventDetailOverlay({
             <TranslateButton
               hackathonId={Number(hackathon.id)}
               description={description}
-              initialTranslation={hackathon.desc_translated}
             />
           )}
 

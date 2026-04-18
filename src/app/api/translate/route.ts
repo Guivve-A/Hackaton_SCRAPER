@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getHackathonById, updateTranslation } from "@/lib/db/queries";
+import { getHackathonById } from "@/lib/db/queries";
 import {
   stripThinkBlocks,
   TRANSLATE_SYSTEM_PROMPT,
@@ -119,19 +119,15 @@ export async function POST(request: Request): Promise<Response> {
   const { hackathonId, description, targetLanguage } = parsedBody.data;
 
   try {
+    // Validate the hackathon exists but DO NOT return or persist a shared
+    // translation. Translations are ephemeral and cached client-side only
+    // (see useTranslationCache) so one user's session never leaks into another.
     const hackathon = await getHackathonById(hackathonId);
     if (!hackathon) {
       return NextResponse.json({ error: "Hackathon not found" }, { status: 404 });
     }
 
-    const cached = hackathon.desc_translated?.trim();
-    if (cached) {
-      return NextResponse.json({ translated: cached, cached: true });
-    }
-
     const translated = await translateWithFireworks(description, targetLanguage);
-
-    await updateTranslation(hackathonId, translated);
 
     return NextResponse.json({ translated, cached: false });
   } catch (error) {

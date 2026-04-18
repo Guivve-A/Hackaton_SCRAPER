@@ -1,27 +1,40 @@
 "use client";
 
 import { Languages, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useTranslationCache } from "@/hooks/useTranslationCache";
 
 export interface TranslateButtonProps {
   hackathonId: number;
   description: string;
-  initialTranslation: string | null;
+  targetLanguage?: string;
 }
 
 export function TranslateButton({
   hackathonId,
   description,
-  initialTranslation,
+  targetLanguage = "es",
 }: TranslateButtonProps) {
-  const [translation, setTranslation] = useState<string | null>(initialTranslation);
+  const cache = useTranslationCache();
+  const [translation, setTranslation] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const cached = cache.get(hackathonId, targetLanguage);
+    if (cached) setTranslation(cached);
+  }, [cache, hackathonId, targetLanguage]);
+
   async function handleTranslate() {
     if (translation || loading) return;
+
+    const cached = cache.get(hackathonId, targetLanguage);
+    if (cached) {
+      setTranslation(cached);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -30,7 +43,7 @@ export function TranslateButton({
       const res = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hackathonId, description, targetLanguage: "es" }),
+        body: JSON.stringify({ hackathonId, description, targetLanguage }),
       });
 
       if (!res.ok) {
@@ -45,6 +58,7 @@ export function TranslateButton({
 
       const data = (await res.json()) as { translated: string };
       setTranslation(data.translated);
+      cache.set(hackathonId, targetLanguage, data.translated);
     } catch {
       setError("Error de red al traducir. Intenta de nuevo.");
     } finally {

@@ -126,7 +126,8 @@ function toHackathon(row: HackathonRow): Hackathon {
     id: String(row.id),
     title: row.title,
     description: row.description ?? null,
-    desc_translated: row.desc_translated,
+    // Never surface stored translations — ephemeral per-session only.
+    desc_translated: null,
     url: row.url,
     platform: (row.platform ?? "devpost") as Hackathon["platform"],
     start_date: row.start_date,
@@ -320,28 +321,6 @@ export async function matchHackathonsByEmbedding(
 
   const rows = (data ?? []) as MatchHackathonRow[];
   return rows.map((row) => ({ ...toHackathon(row), similarity: row.similarity }));
-}
-
-export async function getHackathonsWithoutTranslation(
-  limit = 30
-): Promise<Hackathon[]> {
-  const { data, error } = await getReadClient()
-    .from("hackathons")
-    .select("*")
-    .not("description", "is", null)
-    .is("desc_translated", null)
-    .gt("description", "")
-    .order("created_at", { ascending: false })
-    .limit(limit)
-    .returns<HackathonRow[]>();
-
-  if (error) {
-    throw new Error(`Failed to get hackathons without translation: ${error.message}`);
-  }
-
-  return (data ?? []).map(toHackathon).filter(
-    (h) => h.description && h.description.trim().length > 60
-  );
 }
 
 export async function getHackathonsWithoutEmbedding(
@@ -693,26 +672,6 @@ export async function pruneExpiredByDeadline(
   }
 
   return data?.length ?? 0;
-}
-
-export async function updateTranslation(
-  id: number,
-  text: string
-): Promise<Hackathon> {
-  const { data, error } = await getWriteClient()
-    .from("hackathons")
-    .update({ desc_translated: text })
-    .eq("id", id)
-    .select("*")
-    .single<HackathonRow>();
-
-  if (error || !data) {
-    throw new Error(
-      `Failed to update translated description: ${error?.message ?? "unknown"}`
-    );
-  }
-
-  return toHackathon(data);
 }
 
 export async function recordScrapeSourceMetric(
