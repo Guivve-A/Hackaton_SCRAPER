@@ -156,7 +156,11 @@ function isRawToolJsonLeak(text: string): boolean {
 export default function ChatPage() {
   const { messages, input, handleInputChange, handleSubmit, sendPrompt, isLoading } =
     useChat();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const isSearchToolRunning = messages.some((message) => {
     const toolInvocations = (
@@ -182,11 +186,8 @@ export default function ChatPage() {
   });
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages, isLoading]);
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <>
@@ -211,7 +212,7 @@ export default function ChatPage() {
           </header>
 
           <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.02] shadow-2xl backdrop-blur-md">
-            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
               <div className="space-y-5">
                 {messages.map((message) => (
                   <MessageBubble key={message.id} message={message} />
@@ -220,6 +221,8 @@ export default function ChatPage() {
                 {isLoading && messages.at(-1)?.role !== "assistant" && (
                   <TypingIndicator />
                 )}
+
+                <div ref={messagesEndRef} />
               </div>
             </div>
 

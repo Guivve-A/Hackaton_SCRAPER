@@ -101,6 +101,7 @@ Reglas de herramienta:
 - Usa searchHackathons SOLO cuando el usuario este buscando, comparando o pidiendo recomendaciones de eventos.
 - Para saludos, dudas generales o preguntas no relacionadas a eventos, NO llames herramientas.
 - Cuando necesites buscar hackatones, DEBES usar obligatoriamente la llamada a la herramienta nativa (tool call). NUNCA imprimas el JSON de la funcion dentro de tu respuesta de texto. Responde directamente al usuario usando los resultados devueltos por la herramienta.
+- DIRECTIVA CRITICA DE HERRAMIENTAS: Cuando el usuario pida recomendaciones de eventos, hackatones o pregunte que hay disponible, TIENES PROHIBIDO dar respuestas genericas o inventar datos. DEBES seguir estos pasos estrictamente: 1) Ejecutar la herramienta 'searchHackathons' con los parametros adecuados. 2) Esperar los resultados reales. 3) Si obtienes resultados, muestralos en un formato claro usando Markdown (Titulo en negrita, fecha, plataforma y URL). 4) Si la herramienta no devuelve resultados, responde textualmente: 'No encontre eventos con esos criterios en este momento.'
 
 Reglas de alcance geografico (scope):
 - Por defecto usa 'ecuador-friendly' (Ecuador, LATAM y online globales accesibles desde Ecuador).
@@ -357,13 +358,16 @@ export async function POST(request: Request): Promise<Response> {
 
     const modelMessages = await convertToModelMessages(messagesWithoutIds, { tools });
 
-    const result = streamText({
-      model: fireworks(FIREWORKS_MODEL),
-      system: SYSTEM_PROMPT,
-      messages: modelMessages,
-      tools,
-      stopWhen: stepCountIs(5),
-    });
+    const result = streamText(
+      {
+        model: fireworks(FIREWORKS_MODEL),
+        system: SYSTEM_PROMPT,
+        messages: modelMessages,
+        tools,
+        maxSteps: 5,
+        stopWhen: stepCountIs(5),
+      } as Parameters<typeof streamText>[0]
+    );
 
     return result.toUIMessageStreamResponse({
       sendReasoning: false,
