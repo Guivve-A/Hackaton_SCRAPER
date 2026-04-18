@@ -211,9 +211,9 @@ export default function ChatPage() {
             </div>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.02] shadow-2xl backdrop-blur-md">
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              <div className="space-y-5">
+          <div className="flex h-[70vh] min-h-[500px] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#121212]/80 shadow-2xl backdrop-blur-md">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 scroll-smooth sm:p-6">
+              <div className="space-y-6">
                 {messages.map((message) => (
                   <MessageBubble key={message.id} message={message} />
                 ))}
@@ -227,7 +227,7 @@ export default function ChatPage() {
             </div>
 
             {messages.length <= 1 && (
-              <div className="border-t border-white/10 px-4 pb-1 pt-3 sm:px-6">
+              <div className="flex-none border-t border-white/10 px-4 pb-1 pt-3 sm:px-6">
                 <div className="flex flex-wrap gap-2">
                   {SUGGESTIONS.map((suggestion) => (
                     <button
@@ -249,7 +249,7 @@ export default function ChatPage() {
             )}
 
             {isSearchToolRunning && (
-              <div className="mx-4 mb-1 rounded-xl border border-cyan-500/20 bg-cyan-900/20 px-3 py-2 text-xs text-cyan-200 sm:mx-6">
+              <div className="mx-4 mb-1 flex-none rounded-xl border border-cyan-500/20 bg-cyan-900/20 px-3 py-2 text-xs text-cyan-200 sm:mx-6">
                 <div className="flex items-center gap-2">
                   <Loader2 className="size-3.5 animate-spin" />
                   <span>Buscando en la base de datos global...</span>
@@ -259,7 +259,7 @@ export default function ChatPage() {
 
             <form
               onSubmit={handleSubmit}
-              className="mt-3 border-t border-white/10 p-3 sm:p-4"
+              className="flex-none border-t border-white/10 bg-black/20 p-3 sm:p-4"
             >
               <div className="flex items-end gap-2 rounded-xl border border-white/10 bg-black/40 p-2 transition-all focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50">
                 <textarea
