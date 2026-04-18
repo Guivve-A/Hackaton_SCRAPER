@@ -44,6 +44,7 @@ export function SearchBar({
   const router = useRouter();
   const [value, setValue] = useState(defaultValue);
   const [loading, setLoading] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [focused, setFocused] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const skipNextRef = useRef(false);
@@ -125,24 +126,20 @@ export function SearchBar({
     onResults?.([], "");
   }
 
-  function handleSearchAction(query: string) {
+  function handleSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const query = value.trim();
     onSubmit?.(query);
 
-    if (redirectToEvents && query.trim().length >= MIN_CHARS) {
+    if (redirectToEvents && query.length >= MIN_CHARS) {
+      setIsNavigating(true);
       router.push("/events?q=" + encodeURIComponent(query));
       return;
     }
 
-    if (autoSearch && query.trim().length >= MIN_CHARS) {
+    if (autoSearch && query.length >= MIN_CHARS) {
       void runSearch(query);
-    }
-  }
-
-  function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      const trimmed = value.trim();
-      handleSearchAction(trimmed);
     }
   }
 
@@ -166,7 +163,8 @@ export function SearchBar({
           "group-hover:opacity-80"
         )}
       />
-      <div
+      <form
+        onSubmit={handleSearch}
         className={cn(
           "relative flex items-center rounded-2xl border border-indigo-200/10 bg-[linear-gradient(135deg,rgba(30,27,75,0.45),rgba(15,23,42,0.32))] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl backdrop-saturate-150 transition-all duration-400",
           heightClass,
@@ -176,29 +174,32 @@ export function SearchBar({
         )}
       >
         <button
-          type="button"
-          onClick={() => handleSearchAction(value.trim())}
+          type="submit"
           aria-label="Ejecutar búsqueda"
           className={cn(
             "ml-3 flex size-9 items-center justify-center rounded-xl text-slate-300/60 transition-colors",
             "hover:text-cyan-100/90",
             focused && "text-cyan-100/90",
-            value.trim().length < MIN_CHARS && "cursor-not-allowed opacity-60"
+            (value.trim().length < MIN_CHARS || isNavigating) && "cursor-not-allowed opacity-60"
           )}
-          disabled={value.trim().length < MIN_CHARS}
+          disabled={value.trim().length < MIN_CHARS || isNavigating}
         >
-          <Search className={iconSize} />
+          {isNavigating ? (
+            <Loader2 className={cn("animate-spin", iconSize)} />
+          ) : (
+            <Search className={iconSize} />
+          )}
         </button>
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKey}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           placeholder={placeholder}
           aria-label="Buscar hackathons"
+          disabled={isNavigating}
           className={cn(
-            "tracking-luxury h-full flex-1 bg-transparent px-3 font-medium text-slate-100 placeholder:font-normal placeholder:text-slate-300/45 focus:outline-none",
+            "tracking-luxury h-full flex-1 bg-transparent px-3 font-medium text-slate-100 placeholder:font-normal placeholder:text-slate-300/45 focus:outline-none disabled:cursor-not-allowed disabled:opacity-70",
             textSize
           )}
         />
@@ -208,7 +209,7 @@ export function SearchBar({
               className={cn("animate-spin text-slate-200/85", iconSize)}
             />
           )}
-          {!loading && value && (
+          {!loading && !isNavigating && value && (
             <button
               type="button"
               onClick={handleClear}
@@ -219,7 +220,7 @@ export function SearchBar({
             </button>
           )}
         </div>
-      </div>
+      </form>
     </div>
   );
 }
