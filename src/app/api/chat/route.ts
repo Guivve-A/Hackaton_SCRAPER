@@ -1,4 +1,4 @@
-import { createOpenAI } from "@ai-sdk/openai";
+import { fireworks } from "@ai-sdk/fireworks";
 import {
   convertToModelMessages,
   stepCountIs,
@@ -36,15 +36,6 @@ if (!process.env.FIREWORKS_API_KEY) {
     "Missing FIREWORKS_API_KEY environment variable. Create one at https://fireworks.ai"
   );
 }
-
-const fireworks = createOpenAI({
-  apiKey: process.env.FIREWORKS_API_KEY || "",
-  baseURL: "https://api.fireworks.ai/inference/v1",
-});
-
-const FIREWORKS_MODEL =
-  process.env.FIREWORKS_MODEL?.trim() ||
-  "accounts/fireworks/models/llama-v3p3-70b-instruct";
 
 const chatInputTextSchema = createSanitizedTextSchema(MAX_CHAT_INPUT_CHARS, {
   requiredMessage: "User message is required",
@@ -272,29 +263,38 @@ export async function POST(request: Request): Promise<Response> {
   const tools = {
     searchHackathons: tool({
       description:
-        "Busca hackathons en la base de datos por descripcion semantica. Usala cuando el usuario mencione buscar hackathons, eventos, competencias o pida recomendaciones.",
+        "Solo usa esta herramienta para buscar hackathones, eventos o competencias. NUNCA la uses para responder saludos o preguntas generales sobre tu identidad (ej. '¿Quién eres?').",
       inputSchema: searchHackathonsSchema,
-      execute: async ({ query, online, platform, scope, limit }) => {
-        const results = await searchHackathons({
-          query,
-          online,
-          platform,
-          limit,
-          scope: (scope ?? "ecuador-friendly") as Scope,
-        });
+      execute: async (parameters) => {
+        console.log("Tool searchHackathons invocada con:", parameters);
 
-        return results.map((hackathon) => ({
-          hackathonId: Number(hackathon.id),
-          name: hackathon.title,
-          startDate: hackathon.start_date,
-          deadline: hackathon.deadline,
-          prize: hackathon.prize_pool,
-          link: hackathon.url,
-          platform: hackathon.platform,
-          online: hackathon.is_online,
-          relevance: Number(hackathon.similarity.toFixed(3)),
-          description: hackathon.desc_translated ?? hackathon.description,
-        }));
+        try {
+          const { query, online, platform, scope, limit } = parameters;
+
+          const results = await searchHackathons({
+            query,
+            online,
+            platform,
+            limit,
+            scope: (scope ?? "ecuador-friendly") as Scope,
+          });
+
+          return results.map((hackathon) => ({
+            hackathonId: Number(hackathon.id),
+            name: hackathon.title,
+            startDate: hackathon.start_date,
+            deadline: hackathon.deadline,
+            prize: hackathon.prize_pool,
+            link: hackathon.url,
+            platform: hackathon.platform,
+            online: hackathon.is_online,
+            relevance: Number(hackathon.similarity.toFixed(3)),
+            description: hackathon.desc_translated ?? hackathon.description,
+          }));
+        } catch (error) {
+          console.error("[api/chat] searchHackathons tool failed:", error);
+          return "Error en base de datos.";
+        }
       },
     }),
     translateDescription: tool({
@@ -360,7 +360,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const result = streamText(
       {
-        model: fireworks(FIREWORKS_MODEL),
+        model: fireworks("accounts/fireworks/models/llama-v3p3-70b-instruct"),
         system: SYSTEM_PROMPT,
         messages: modelMessages,
         tools,

@@ -146,11 +146,12 @@ function renderSafeMarkdown(markdown: string): string {
 }
 
 function isRawToolJsonLeak(text: string): boolean {
-  const trimmed = text.trim();
-  return (
-    /^\{\s*"type"\s*:\s*"function"/i.test(trimmed) ||
-    /^\{\s*"name"\s*:/i.test(trimmed)
-  );
+  const isJsonLeak =
+    /\{\s*['"]?(type|name)['"]?\s*:\s*['"]?(function|searchHackathons)['"]?/i.test(
+      text
+    );
+
+  return isJsonLeak;
 }
 
 export default function ChatPage() {
@@ -350,7 +351,11 @@ function PartRenderer({ part, isUser }: { part: ToolPart; isUser: boolean }) {
   if (part.type === "text") {
     const text = (part as { text?: string }).text ?? "";
     if (!text) return null;
-    if (!isUser && isRawToolJsonLeak(text)) return null;
+    const isJsonLeak =
+      /\{\s*['"]?(type|name)['"]?\s*:\s*['"]?(function|searchHackathons)['"]?/i.test(
+        text
+      );
+    if (!isUser && isJsonLeak) return null;
 
     const sanitizedHtml = isUser ? "" : renderSafeMarkdown(text);
 

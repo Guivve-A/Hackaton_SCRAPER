@@ -10,6 +10,7 @@
     "test:security": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/fireworks": "^2.0.46",
     "@ai-sdk/openai": "^3.0.53",
     "@ai-sdk/react": "^3.0.166",
     "@gsap/react": "^2.1.2",
