@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Compass } from "lucide-react";
 
 interface SiteHeaderProps {
   overlay?: boolean;
@@ -23,22 +22,16 @@ export function SiteHeader({ overlay = false }: SiteHeaderProps) {
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-100/35 to-transparent"
           />
 
-          <Link
-            href="/"
-            className="group relative z-10 flex items-center gap-2.5 text-slate-100 transition-opacity hover:opacity-95"
-          >
-            <span className="relative flex size-6 items-center justify-center rounded-full border border-white/20 bg-white/[0.04] text-slate-100/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] transition-colors group-hover:border-slate-200/45 group-hover:bg-white/[0.08] sm:size-7">
-              <Compass className="size-3.5" />
-            </span>
-            <span className="font-heading text-[13px] font-[450] tracking-[-0.03em] text-slate-100/95 sm:text-[14px]">
-              HackFinder
-            </span>
-          </Link>
-
           <nav
             aria-label="Principal"
             className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 text-[11px] font-medium tracking-[0.01em] text-slate-200/70 sm:gap-1 sm:text-[12px]"
           >
+            <Link
+              href="/"
+              className="rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.08] hover:text-slate-100 sm:px-3"
+            >
+              Home
+            </Link>
             <Link
               href="/events"
               className="rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.08] hover:text-slate-100 sm:px-3"
