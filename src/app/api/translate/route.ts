@@ -6,8 +6,12 @@ import {
   stripThinkBlocks,
   TRANSLATE_SYSTEM_PROMPT,
 } from "@/lib/ai/sanitize-output";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const TRANSLATE_RATE_LIMIT = 10;
+const TRANSLATE_WINDOW_MS = 60_000;
 
 if (!process.env.FIREWORKS_API_KEY) {
   throw new Error(
@@ -100,6 +104,14 @@ async function translateWithFireworks(
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const clientIp = getClientIp(request);
+  const rateCheck = await checkRateLimit({
+    key: `translate:${clientIp}`,
+    limit: TRANSLATE_RATE_LIMIT,
+    windowMs: TRANSLATE_WINDOW_MS,
+  });
+  if (!rateCheck.ok) return rateCheck.response;
+
   const rawBody = await request.json().catch(() => null);
   const parsedBody = translateRequestSchema.safeParse(rawBody);
 

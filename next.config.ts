@@ -40,6 +40,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Drop the X-Powered-By: Next.js response header — minor info disclosure
+  // that has no upside in production.
+  poweredByHeader: false,
   turbopack: {
     root: process.cwd(),
   },

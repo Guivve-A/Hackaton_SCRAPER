@@ -11,4 +11,4 @@ SET desc_translated = NULL
 WHERE desc_translated IS NOT NULL;
 
 -- Optional (commented out until verified safe):
--- ALTER TABLE public.hackathons DROP COLUMN desc_translated;
+ ALTER TABLE public.hackathons DROP COLUMN desc_translated;
