@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavLinks } from "@/components/NavLinks";
 
 interface SiteHeaderProps {
   overlay?: boolean;
@@ -22,29 +22,7 @@ export function SiteHeader({ overlay = false }: SiteHeaderProps) {
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-slate-100/35 to-transparent"
           />
 
-          <nav
-            aria-label="Principal"
-            className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 text-[11px] font-medium tracking-[0.01em] text-slate-200/70 sm:gap-1 sm:text-[12px]"
-          >
-            <Link
-              href="/"
-              className="rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.08] hover:text-slate-100 sm:px-3"
-            >
-              Home
-            </Link>
-            <Link
-              href="/events"
-              className="rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.08] hover:text-slate-100 sm:px-3"
-            >
-              Eventos
-            </Link>
-            <Link
-              href="/chat"
-              className="rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.08] hover:text-slate-100 sm:px-3"
-            >
-              HackBot
-            </Link>
-          </nav>
+          <NavLinks />
         </div>
       </div>
     </header>
